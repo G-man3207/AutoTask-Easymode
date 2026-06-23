@@ -1,0 +1,21 @@
+# Compiled binaries
+/atem
+/atem.exe
+*.exe
+
+# Test & coverage output
+coverage
+coverage.out
+coverage.html
+
+# Local agent / MCP config (machine-specific absolute paths)
+.mcp.json
+AGENTS.local.md
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json

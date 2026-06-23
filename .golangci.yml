@@ -1,0 +1,190 @@
+# Strict, curated golangci-lint configuration (schema v2).
+#
+# Philosophy: this is a guardrail for humans AND LLM agents editing the code.
+# We enable a broad set of high-signal linters (correctness, security,
+# complexity, dead code, consistency) and keep the tree 100% green rather than
+# leaning on scattered //nolint exceptions. A few purely cosmetic or
+# counterproductive linters are intentionally left off, each noted below.
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  # Intentionally NOT enabled, with reasons:
+  #   exhaustruct  - forces every struct field; counterproductive with map-heavy
+  #                  payloads and stdlib structs.
+  #   wsl/nlreturn - pure whitespace bikeshedding; gofumpt already makes layout
+  #                  deterministic (the real "diff stability" guardrail).
+  #   varnamelen   - flags idiomatic short names (s, e, fc, id).
+  #   wrapcheck    - forces wrapping every external error; too noisy for a CLI.
+  #   ireturn      - we deliberately return the autotaskClient interface for tests.
+  #   goconst      - flags repeated JSON output keys and command names where
+  #                  string literals are clearer than constants.
+  #   mnd/depguard/lll/godox/testpackage/paralleltest/err113 - noise or N/A here.
+  default: none
+  enable:
+    # --- correctness / bugs ---
+    - errcheck          # unchecked errors
+    - govet             # vet suite (enable-all below)
+    - staticcheck       # the big static-analysis suite
+    - ineffassign       # ineffectual assignments
+    - unused            # unused code
+    - bodyclose         # response bodies must be closed
+    - noctx             # http requests must carry a context
+    - contextcheck      # ensure context propagation
+    - errorlint         # correct error wrapping/compares
+    - nilerr            # don't return nil after checking err != nil
+    - nilnesserr        # nil-error mistakes
+    - rowserrcheck      # sql rows.Err (harmless: no sql here)
+    - sqlclosecheck     # sql close (harmless: no sql here)
+    - durationcheck     # bad time.Duration multiplications
+    - makezero          # make([]T, n) then append surprises
+    - reassign          # reassigning package variables
+    - fatcontext        # context in loops
+    - canonicalheader   # canonical HTTP header keys
+    - asasalint         # variadic any slices
+    - bidichk           # dangerous unicode
+    - dupword           # duplicated words in comments/strings
+    - gocheckcompilerdirectives
+    - forcetypeassert   # checked type assertions
+    - recvcheck         # consistent pointer/value receivers
+
+    # --- security ---
+    - gosec
+
+    # --- complexity (caps keep functions small for humans and agents) ---
+    - gocyclo
+    - gocognit
+    - cyclop
+    - funlen
+    - nestif
+    - maintidx
+
+    # --- style / consistency ---
+    - revive
+    - gocritic
+    - misspell
+    - godot
+    - whitespace
+    - unconvert
+    - unparam
+    - prealloc
+    - predeclared
+    - usestdlibvars
+    - perfsprint
+    - intrange
+    - mirror
+    - nosprintfhostport
+    - errname
+    - gochecknoinits
+    - testifylint
+    - thelper
+    - tparallel
+    - usetesting
+    - wastedassign
+
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # struct memory layout micro-optimisation; too noisy
+        - shadow         # variable shadowing; noisy with err reuse
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+    gocyclo:
+      min-complexity: 15
+    gocognit:
+      min-complexity: 25
+    cyclop:
+      max-complexity: 15
+    funlen:
+      lines: 90
+      statements: 55
+    nestif:
+      min-complexity: 5
+    dupl:
+      threshold: 200
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    misspell:
+      locale: US
+    godot:
+      scope: declarations
+      capital: false
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+      disabled-checks:
+        - ifElseChain    # the dispatch switches read fine as-is
+        - hugeParam      # passing the small Result struct by value is fine here
+        - unnamedResult  # multi-value returns are clear from context here
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unreachable-code
+        - name: redefines-builtin-id
+
+  exclusions:
+    generated: lax
+    rules:
+      # gosec: the only "variable URL" requests are to the configured Autotask
+      # zone (not user-tainted); the only "variable path" file reads are the
+      # app's own config/state files; and persisting the secret to the 0600
+      # config file is an opt-in (ATEM_SECRET is the recommended alternative).
+      - linters: [gosec]
+        text: "(G107|G304|G117)"
+      # The config UI opens the browser via a fixed OS launcher with our own
+      # 127.0.0.1 URL (not user input).
+      - linters: [gosec]
+        path: cmd_ui\.go
+        text: "G204"
+      # Autotask documents specific header names (ApiIntegrationCode, UserName);
+      # HTTP/2 lower-cases header names on the wire anyway, so canonical form is
+      # irrelevant to the server. Keep the documented names for readability.
+      - linters: [canonicalheader]
+        path: internal/atapi/
+      # Relax volume/style linters inside tests where they add no value.
+      - path: _test\.go
+        linters:
+          - funlen
+          - gocognit
+          - gocyclo
+          - cyclop
+          - maintidx
+          - dupl
+          - gosec
+          - unparam
+
+formatters:
+  # gofumpt only: the project has no third-party dependencies, so goimports'
+  # local-prefix grouping is unnecessary and merely conflicts with gofumpt's
+  # import handling. gofumpt is a strict superset of gofmt.
+  enable:
+    - gofumpt
+  settings:
+    gofumpt:
+      extra-rules: true

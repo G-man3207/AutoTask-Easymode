@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  GOLANGCI_VERSION: v2.12.2
+
+jobs:
+  check:
+    name: build / lint / test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          check-latest: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ env.GOLANGCI_VERSION }}
+
+      # `golangci-lint run` enforces the strict linter set AND gofumpt formatting.
+      - name: Lint + formatting
+        run: golangci-lint run
+
+      - name: Test (race + coverage)
+        run: go test ./... -race -count=1 -covermode=atomic -coverprofile=coverage.out
+
+      - name: Coverage summary
+        run: go tool cover -func=coverage.out | tail -n 1

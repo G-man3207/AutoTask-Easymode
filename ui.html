@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>atem · config</title>
+<style>
+  :root{--bg:#0f1419;--panel:#1a2029;--fg:#e6e6e6;--muted:#8a94a6;--accent:#4a9eff;--ok:#3ecf8e;--warn:#ffb454;--err:#ff6b6b;--border:#2a323d}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 system-ui,"Segoe UI",sans-serif;background:var(--bg);color:var(--fg)}
+  .wrap{max-width:840px;margin:0 auto;padding:24px}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);margin-bottom:18px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+  .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 12px}
+  .row{display:grid;grid-template-columns:210px 1fr;gap:10px;align-items:center;margin-bottom:10px}
+  label{color:var(--muted)}
+  input{width:100%;padding:8px 10px;background:#0f141b;border:1px solid var(--border);border-radius:6px;color:var(--fg);font:inherit}
+  input:focus{outline:none;border-color:var(--accent)}
+  .secretrow{display:flex;gap:8px}
+  .secretrow button{white-space:nowrap}
+  button{padding:8px 14px;background:var(--accent);color:#06121f;border:0;border-radius:6px;font:inherit;font-weight:600;cursor:pointer}
+  button.ghost{background:transparent;color:var(--fg);border:1px solid var(--border);font-weight:500}
+  .actions{display:flex;gap:10px;align-items:center;margin:8px 0 18px}
+  #msg{margin-left:auto}
+  .ok{color:var(--ok)}.warn{color:var(--warn)}.err{color:var(--err)}.muted{color:var(--muted)}
+  ul{margin:6px 0;padding-left:18px}
+  .hint{color:var(--muted);font-size:12px;margin-top:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>atem · configuration</h1>
+  <div class="sub">Local editor on 127.0.0.1 — values are saved to your atem config file. Environment variables (ATEM_*) override the file when set.</div>
+
+  <div class="actions">
+    <button id="save">Save</button>
+    <button id="verify" class="ghost">Save &amp; verify against Autotask</button>
+    <span id="msg"></span>
+  </div>
+
+  <div class="card">
+    <h2>Credentials</h2>
+    <div class="row"><label>Username</label><input id="username" placeholder="apiuser@example.com" autocomplete="off"></div>
+    <div class="row"><label>Integration code</label>
+      <div class="secretrow"><input id="integrationCode" type="password" autocomplete="off"><button class="ghost" data-toggle="integrationCode">Show</button></div>
+    </div>
+    <div class="row"><label>Secret</label>
+      <div class="secretrow"><input id="secret" type="password" autocomplete="off"><button class="ghost" data-toggle="secret">Show</button></div>
+    </div>
+    <div class="row"><label>API base URL <span class="muted">(auto)</span></label><input id="apiBaseUrl" placeholder="auto-detected on first call"></div>
+  </div>
+
+  <div class="card">
+    <h2>Defaults</h2>
+    <div class="row"><label>Resource ID <span class="muted">(you)</span></label><input id="resourceId" type="number"></div>
+    <div class="row"><label>Queue ID</label><input id="queueId" type="number" list="dl-queue"></div>
+    <div class="row"><label>Priority</label><input id="priority" type="number" list="dl-priority"></div>
+    <div class="row"><label>Ticket status · New</label><input id="ticketStatusNew" type="number" list="dl-status"></div>
+    <div class="row"><label>Ticket status · Complete</label><input id="ticketStatusComplete" type="number" list="dl-status"></div>
+    <div class="row"><label>Billing code · work type</label><input id="billingCodeId" type="number" list="dl-worktype"></div>
+    <div class="row"><label>Role ID</label><input id="roleId" type="number"></div>
+    <div class="hint">Tip: click <b>Verify</b> to load your org's IDs into the dropdowns above.</div>
+    <datalist id="dl-queue"></datalist>
+    <datalist id="dl-priority"></datalist>
+    <datalist id="dl-status"></datalist>
+    <datalist id="dl-worktype"></datalist>
+  </div>
+
+  <div class="card">
+    <h2>Review flags</h2>
+    <div class="row"><label>Flag entries over (hours)</label><input id="flagHoursOver" type="number"></div>
+    <div class="row"><label>…with note under (chars)</label><input id="flagNotesUnder" type="number"></div>
+    <div class="row"><label>Always flag at/over (hours)</label><input id="flagHoursAlways" type="number"></div>
+  </div>
+
+  <div class="card" id="verifyCard" style="display:none">
+    <h2>Verify result</h2>
+    <div id="verifyOut"></div>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const fields = ["username","integrationCode","secret","apiBaseUrl","resourceId","queueId","priority","ticketStatusNew","ticketStatusComplete","billingCodeId","roleId","flagHoursOver","flagNotesUnder","flagHoursAlways"];
+const numeric = new Set(["resourceId","queueId","priority","ticketStatusNew","ticketStatusComplete","billingCodeId","roleId","flagHoursOver","flagNotesUnder","flagHoursAlways"]);
+
+function msg(text, cls){ const m=$("msg"); m.textContent=text||""; m.className=cls||""; }
+
+async function load(){
+  try{
+    const c = await (await fetch("/api/config")).json();
+    for(const f of fields){ const v=c[f]; $(f).value = (v===undefined||v===null||(numeric.has(f)&&v===0)) ? "" : v; }
+  }catch(e){ msg("Could not load config","err"); }
+}
+
+function collect(){
+  const c={};
+  for(const f of fields){ const raw=$(f).value.trim(); c[f]=numeric.has(f) ? (parseInt(raw||"0",10)||0) : raw; }
+  return c;
+}
+
+async function save(){
+  const r = await fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(collect())});
+  msg(r.ok?"Saved ✓":"Save failed", r.ok?"ok":"err");
+  return r.ok;
+}
+
+function fillList(id, items, labelKey){
+  const dl=$(id); if(!dl) return; dl.innerHTML="";
+  for(const it of (items||[])){ const o=document.createElement("option"); o.value=it.id; o.label=(it[labelKey]||"")+" ("+it.id+")"; dl.appendChild(o); }
+}
+
+async function verify(){
+  msg("Verifying…","muted");
+  if(!(await save())) return;
+  let d;
+  try{ d = await (await fetch("/api/doctor",{method:"POST"})).json(); }
+  catch(e){ msg("Verify failed","err"); return; }
+  $("verifyCard").style.display="block";
+  const creds=d.credentials||{}, zone=d.zone||{}, p=d.picklists||{};
+  let h="";
+  h += "<p>Credentials: "+(creds.ok?"<span class=ok>OK</span>":"<span class=err>missing "+((creds.missing||[]).join(", "))+"</span>")+"</p>";
+  if(zone.ok) h += "<p>Zone: <span class=ok>"+zone.apiBaseUrl+"</span></p>";
+  else if(zone.error) h += "<p>Zone: <span class=err>"+zone.error+"</span></p>";
+  if(p.ticketFieldsError) h += "<p class=err>Ticket fields: "+p.ticketFieldsError+"</p>";
+  if(p.workTypesError) h += "<p class=warn>Work types: "+p.workTypesError+"</p>";
+  const rec=d.recommend||[];
+  if(rec.length){ h += "<p class=warn>To do:</p><ul>"+rec.map(x=>"<li>"+x+"</li>").join("")+"</ul>"; }
+  $("verifyOut").innerHTML=h;
+  fillList("dl-status", p.ticketStatus, "label");
+  fillList("dl-priority", p.ticketPriority, "label");
+  fillList("dl-queue", p.ticketQueue, "label");
+  fillList("dl-worktype", p.workTypes, "name");
+  msg("Verified","ok");
+}
+
+for(const b of document.querySelectorAll("[data-toggle]")){
+  b.onclick = () => { const el=$(b.dataset.toggle); const show=el.type==="password"; el.type=show?"text":"password"; b.textContent=show?"Hide":"Show"; };
+}
+$("save").onclick=save;
+$("verify").onclick=verify;
+load();
+</script>
+</body>
+</html>

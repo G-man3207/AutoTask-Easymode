@@ -1,0 +1,4 @@
+# Normalize line endings to LF in the repo AND in the working tree on every
+# platform. Go tooling (gofmt/gofumpt) expects LF, so forcing eol=lf keeps the
+# lint gate green even on fresh Windows checkouts.
+* text=auto eol=lf
