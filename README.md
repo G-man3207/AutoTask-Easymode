@@ -200,9 +200,29 @@ docker build -t atem-mcp .
 docker run --rm -p 8080:8080 atem-mcp
 ```
 
-This is the transport foundation for Microsoft 365 Copilot. The next production
-layer is Entra-authenticated profile mapping so each request is pinned to the
-calling technician's Autotask `resourceId`/`roleId` server-side. Enable it with:
+The hosted path has been verified end-to-end with Microsoft Copilot Studio:
+Copilot authenticates the signed-in user with Entra OAuth 2.0, calls the remote
+MCP endpoint, and `atem` maps the Entra subject to a server-side Autotask
+technician profile before calling Autotask.
+
+```mermaid
+flowchart LR
+  User["Technician"] --> Agent["Copilot Studio agent"]
+  Agent --> MCP["MCP tool call"]
+  MCP --> ACA["Azure Container App\natem serve /mcp"]
+
+  Agent -. "OAuth 2.0 sign-in" .-> Entra["Microsoft Entra ID"]
+  ACA -. "Validate JWT via OIDC/JWKS" .-> Entra
+
+  ACA -. "Managed identity secret refs" .-> KV["Azure Key Vault\nAutotask API creds\nEntra-to-Autotask profiles"]
+  ACA --> AT["Autotask PSA REST API"]
+
+  GH["GitHub Actions\nbuild, lint, test, image"] --> ACR["Azure Container Registry"]
+  ACR --> ACA
+```
+
+Enable Entra-authenticated profile mapping so each request is pinned to the
+calling technician's Autotask `resourceId`/`roleId` server-side:
 
 ```pwsh
 atem serve --auth entra --tenant-id <tenant-guid> --audience <api-client-id-or-app-id-uri>
@@ -230,8 +250,8 @@ Example profile JSON:
   {
     "tenantId": "00000000-0000-0000-0000-000000000000",
     "objectId": "11111111-1111-1111-1111-111111111111",
-    "resourceId": 29682903,
-    "roleId": 29683464,
+    "resourceId": 12345,
+    "roleId": 67890,
     "scopes": ["company:read", "ticket:read", "ticket:create", "time:add", "report:read"]
   }
 ]
@@ -241,6 +261,29 @@ The hosted server verifies the Entra JWT signature and issuer via OpenID
 discovery/JWKS, checks tenant/audience/lifetime, then looks up `tid+oid` in the
 profile list. Autotask `resourceID`, `roleID`, `assignedResourceID`, and
 `assignedResourceRoleID` are injected server-side from that profile.
+
+Copilot Studio is configured as a Model Context Protocol tool with OAuth 2.0
+manual auth:
+
+| Field | Value |
+|---|---|
+| Server URL | `https://<container-app-fqdn>/mcp` |
+| Client ID | the Entra app registration client id |
+| Authorization URL | `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize` |
+| Token URL template | `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` |
+| Refresh URL | `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` |
+| Scopes | `api://<api-app-client-id>/access_as_user` |
+
+After Copilot Studio generates its redirect URL, add that exact value as a
+**Web** redirect URI on the Entra app registration. Keep live tenant ids,
+subscription ids, FQDNs, client secrets, and profile JSON out of the repo.
+
+Recommended Copilot Studio setup: add Microsoft's **Work IQ User MCP** connector
+alongside ATEM MCP. Work IQ can read the signed-in user's Microsoft 365 context
+such as Outlook and Teams, which gives the agent useful raw material for "what
+did I work on today?" prompts. ATEM MCP should remain the only tool that writes
+to Autotask; use Work IQ for user/day context and ATEM for ticket lookup, ticket
+creation, time entries, and reports.
 
 Azure Container Apps deployment and GitHub OIDC setup are documented in
 `docs/AZURE_DEPLOY.md`.
