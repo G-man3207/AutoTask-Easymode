@@ -242,6 +242,9 @@ discovery/JWKS, checks tenant/audience/lifetime, then looks up `tid+oid` in the
 profile list. Autotask `resourceID`, `roleID`, `assignedResourceID`, and
 `assignedResourceRoleID` are injected server-side from that profile.
 
+Azure Container Apps deployment and GitHub OIDC setup are documented in
+`docs/AZURE_DEPLOY.md`.
+
 ## Safety
 
 `atem` writes real, billable data to your customer's PSA. Writes are explicit

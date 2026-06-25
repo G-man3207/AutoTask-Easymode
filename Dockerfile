@@ -6,7 +6,12 @@ WORKDIR /src
 COPY go.mod ./
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/atem .
+ARG ATEM_COMMIT=unknown
+ARG ATEM_BUILD_TIME=unknown
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
+	-ldflags="-s -w -X main.commit=${ATEM_COMMIT} -X main.buildTime=${ATEM_BUILD_TIME}" \
+	-o /out/atem .
 
 FROM alpine:3.22
 
