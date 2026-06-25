@@ -10,6 +10,7 @@ coverage.html
 
 # Local agent / MCP config (machine-specific absolute paths)
 .mcp.json
+.codex/
 AGENTS.local.md
 
 # Editor / OS noise
