@@ -76,6 +76,27 @@ type TicketSearchResult struct {
 	Tickets []TicketHit `json:"tickets"`
 }
 
+type SubIssueTypeOption struct {
+	ID          int64  `json:"id"`
+	Label       string `json:"label"`
+	IssueTypeID int64  `json:"issueTypeId"`
+	Default     bool   `json:"default"`
+}
+
+type IssueTypeOption struct {
+	ID            int64                `json:"id"`
+	Label         string               `json:"label"`
+	Default       bool                 `json:"default"`
+	SubIssueTypes []SubIssueTypeOption `json:"subIssueTypes"`
+}
+
+type TicketIssueTypesResult struct {
+	Count         int               `json:"count"`
+	SubIssueCount int               `json:"subIssueCount"`
+	IssueTypes    []IssueTypeOption `json:"issueTypes"`
+	Guidance      string            `json:"guidance"`
+}
+
 // --- ticket create / close ---
 
 type TicketCreateResult struct {

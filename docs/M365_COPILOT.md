@@ -20,6 +20,10 @@ between today's local CLI/MCP server and a tenant-deployable Copilot plugin.
   from the authenticated profile when present, falling back to local config for
   the CLI. The user cannot pass `resourceID` directly through the existing
   `ticket create`, `timer stop`, or `time add` commands.
+- The hosted toolset includes `ticket issue-types`, a read-only metadata tool
+  that exposes active Autotask issue/sub-issue picklists. Agents can use it to
+  categorize new tickets, but should ask the user before creating a ticket when
+  the available Microsoft 365/work context does not clearly map to one option.
 - The local stdio MCP surface is intentionally broader than the hosted M365
   surface. Local/admin tools such as `config set`, `company alias`, local timer
   state commands, and `config doctor` remain available locally but are hidden
@@ -180,6 +184,7 @@ Initial remote toolset should probably include:
 
 - `company search`
 - `ticket search`
+- `ticket issue-types`
 - `ticket show`
 - `ticket create`
 - `time add`

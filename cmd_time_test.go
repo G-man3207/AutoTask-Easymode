@@ -163,6 +163,43 @@ func TestTimeAddCreatesEntriesAndCloses(t *testing.T) {
 	}
 }
 
+func TestTimeAddCreateTicketIncludesIssueTypes(t *testing.T) {
+	app := newTestApp(t, &fakeClient{})
+	app.cfg.ResourceID = 55
+
+	res, err := app.cmdTimeAdd([]string{
+		"--company", "0",
+		"--title", "Website",
+		"--desc", "Work on website",
+		"--windows", "11-12",
+		"--note", "Reviewed publish issue",
+		"--issue-type", "10",
+		"--sub-issue-type", "200",
+		"--dry-run",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	createTicket, _ := dataMap(t, res)["createTicket"].(map[string]any)
+	if asInt64(createTicket["issueType"]) != 10 || asInt64(createTicket["subIssueType"]) != 200 {
+		t.Fatalf("createTicket = %+v", createTicket)
+	}
+}
+
+func TestTimeAddRejectsIssueTypesWithExistingTicket(t *testing.T) {
+	app := newTestApp(t, &fakeClient{})
+	app.cfg.ResourceID = 55
+	if _, err := app.cmdTimeAdd([]string{
+		"--ticket", "100",
+		"--windows", "11-12",
+		"--note", "Reviewed publish issue",
+		"--issue-type", "10",
+		"--dry-run",
+	}); err == nil {
+		t.Fatal("expected issue-type with existing --ticket to fail")
+	}
+}
+
 func TestTimeAddValidation(t *testing.T) {
 	app := newTestApp(t, &fakeClient{})
 

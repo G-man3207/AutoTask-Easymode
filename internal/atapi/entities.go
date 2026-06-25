@@ -27,10 +27,11 @@ type Field struct {
 
 // PicklistValue is one allowed value of a picklist field (e.g. a ticket status).
 type PicklistValue struct {
-	Value     string `json:"value"`
-	Label     string `json:"label"`
-	IsActive  bool   `json:"isActive"`
-	IsDefault bool   `json:"isDefaultValue"`
+	Value       string `json:"value"`
+	Label       string `json:"label"`
+	ParentValue string `json:"parentValue"`
+	IsActive    bool   `json:"isActive"`
+	IsDefault   bool   `json:"isDefaultValue"`
 }
 
 // EntityFields returns the field metadata for an entity, including the allowed

@@ -23,11 +23,36 @@ func requireDescription(desc string) error {
 // ticketFields builds the payload for creating a ticket from configured
 // defaults, returning warnings for any required-but-unset defaults.
 func (a *App) ticketFields(companyID int, title, desc string) (map[string]any, []string) {
+	return a.ticketFieldsWithOptions(companyID, title, desc, ticketFieldOptions{})
+}
+
+type ticketFieldOptions struct {
+	issueType    int
+	subIssueType int
+}
+
+func (o ticketFieldOptions) validate() error {
+	if o.subIssueType != 0 && o.issueType == 0 {
+		return hinted(
+			"first choose an issue type with `atem ticket issue-types`, then pass both --issue-type and --sub-issue-type",
+			"--sub-issue-type requires --issue-type",
+		)
+	}
+	return nil
+}
+
+func (a *App) ticketFieldsWithOptions(companyID int, title, desc string, opts ticketFieldOptions) (map[string]any, []string) {
 	fields := map[string]any{
 		"companyID": companyID,
 		"title":     title,
 		"status":    defOr(a.cfg.Defaults.TicketStatusNew, 1),
 		"priority":  defOr(a.cfg.Defaults.Priority, 1),
+	}
+	if opts.issueType != 0 {
+		fields["issueType"] = opts.issueType
+	}
+	if opts.subIssueType != 0 {
+		fields["subIssueType"] = opts.subIssueType
 	}
 	var warnings []string
 	if a.cfg.Defaults.QueueID != 0 {
@@ -48,14 +73,115 @@ func (a *App) ticketFields(companyID int, title, desc string) (map[string]any, [
 	return fields, warnings
 }
 
+func (a *App) cmdTicketIssueTypes(args []string) (*cmdResult, error) {
+	fs := newFlagSet("ticket issue-types")
+	if err := fs.Parse(args); err != nil {
+		return nil, usageErr("ticket issue-types", err)
+	}
+
+	ctx, cancel := cmdContext()
+	defer cancel()
+	client, err := a.newClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	fields, err := client.EntityFields(ctx, atapi.EntityTickets)
+	if err != nil {
+		return nil, err
+	}
+	return &cmdResult{action: "ticket.issue-types", data: ticketIssueTypesFromFields(fields)}, nil
+}
+
+func ticketIssueTypesFromFields(fields []atapi.Field) TicketIssueTypesResult {
+	issues := activeIssueTypes(fields, "issueType")
+	subIssues := activeSubIssueTypes(fields, "subIssueType")
+	byIssue := make(map[int64][]SubIssueTypeOption, len(issues))
+	activeIssues := make(map[int64]bool, len(issues))
+	for _, issue := range issues {
+		activeIssues[issue.ID] = true
+	}
+	subIssueCount := 0
+	for _, sub := range subIssues {
+		if !activeIssues[sub.IssueTypeID] {
+			continue
+		}
+		byIssue[sub.IssueTypeID] = append(byIssue[sub.IssueTypeID], sub)
+		subIssueCount++
+	}
+	for i := range issues {
+		issues[i].SubIssueTypes = byIssue[issues[i].ID]
+	}
+	return TicketIssueTypesResult{
+		Count:         len(issues),
+		SubIssueCount: subIssueCount,
+		IssueTypes:    issues,
+		Guidance:      "Use these ids with ticket_create/time_add flags issue-type and sub-issue-type. Only choose when the request clearly matches; if several options fit or the information is too thin, ask the user before creating the ticket. A sub-issue id must belong to the selected issue type.",
+	}
+}
+
+func activeIssueTypes(fields []atapi.Field, name string) []IssueTypeOption {
+	var out []IssueTypeOption
+	for _, f := range fields {
+		if !strings.EqualFold(f.Name, name) {
+			continue
+		}
+		for _, v := range f.PicklistValues {
+			if !v.IsActive {
+				continue
+			}
+			id, ok := picklistInt(v.Value)
+			if !ok {
+				continue
+			}
+			out = append(out, IssueTypeOption{ID: id, Label: v.Label, Default: v.IsDefault})
+		}
+	}
+	return out
+}
+
+func activeSubIssueTypes(fields []atapi.Field, name string) []SubIssueTypeOption {
+	var out []SubIssueTypeOption
+	for _, f := range fields {
+		if !strings.EqualFold(f.Name, name) {
+			continue
+		}
+		for _, v := range f.PicklistValues {
+			if !v.IsActive {
+				continue
+			}
+			id, ok := picklistInt(v.Value)
+			if !ok {
+				continue
+			}
+			parentID, ok := picklistInt(v.ParentValue)
+			if !ok {
+				continue
+			}
+			out = append(out, SubIssueTypeOption{ID: id, Label: v.Label, IssueTypeID: parentID, Default: v.IsDefault})
+		}
+	}
+	return out
+}
+
+func picklistInt(s string) (int64, bool) {
+	id, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+	return id, err == nil
+}
+
 func (a *App) cmdTicketCreate(args []string) (*cmdResult, error) {
 	fs := newFlagSet("ticket create")
 	company := fs.String("company", "", "customer alias or companyID")
 	title := fs.String("title", "", "ticket title")
 	desc := fs.String("desc", "", "ticket description")
+	issueType := fs.Int("issue-type", 0, "ticket issue type id from `ticket issue-types`")
+	subIssueType := fs.Int("sub-issue-type", 0, "ticket sub-issue type id from `ticket issue-types`")
 	dryRun := fs.Bool("dry-run", false, "preview without writing")
 	if err := fs.Parse(args); err != nil {
 		return nil, usageErr("ticket create", err)
+	}
+	opts := ticketFieldOptions{issueType: *issueType, subIssueType: *subIssueType}
+	if err := opts.validate(); err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(*company) == "" {
 		return nil, hinted("e.g. --company acme", "missing --company")
@@ -71,7 +197,7 @@ func (a *App) cmdTicketCreate(args []string) (*cmdResult, error) {
 		return nil, err
 	}
 
-	fields, warnings := a.ticketFields(companyID, *title, *desc)
+	fields, warnings := a.ticketFieldsWithOptions(companyID, *title, *desc, opts)
 	if *dryRun {
 		return &cmdResult{action: "ticket.create", dryRun: true, data: TicketCreateDryRun{Fields: fields, Warnings: warnings}}, nil
 	}

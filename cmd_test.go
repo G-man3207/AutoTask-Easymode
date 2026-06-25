@@ -59,6 +59,75 @@ func TestTicketCreateDryRun(t *testing.T) {
 	}
 }
 
+func TestTicketIssueTypesGroupsSubIssues(t *testing.T) {
+	fc := &fakeClient{fields: []atapi.Field{
+		{Name: "issueType", PicklistValues: []atapi.PicklistValue{
+			{Value: "10", Label: "Computer", IsActive: true},
+			{Value: "11", Label: "Network", IsActive: false},
+		}},
+		{Name: "subIssueType", PicklistValues: []atapi.PicklistValue{
+			{Value: "200", Label: "Laptop", ParentValue: "10", IsActive: true},
+			{Value: "201", Label: "Inactive", ParentValue: "10", IsActive: false},
+			{Value: "202", Label: "Orphan", ParentValue: "11", IsActive: true},
+		}},
+	}}
+	app := newTestApp(t, fc)
+
+	res, err := app.cmdTicketIssueTypes(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := res.data.(TicketIssueTypesResult)
+	if !ok {
+		t.Fatalf("data = %T", res.data)
+	}
+	if got.Count != 1 || got.SubIssueCount != 1 {
+		t.Fatalf("counts = %d/%d, want 1/1", got.Count, got.SubIssueCount)
+	}
+	if got.IssueTypes[0].ID != 10 || got.IssueTypes[0].Label != "Computer" {
+		t.Fatalf("issue = %+v", got.IssueTypes[0])
+	}
+	subs := got.IssueTypes[0].SubIssueTypes
+	if len(subs) != 1 || subs[0].ID != 200 || subs[0].IssueTypeID != 10 {
+		t.Fatalf("subIssueTypes = %+v", subs)
+	}
+	if !strings.Contains(got.Guidance, "ask the user") {
+		t.Errorf("guidance should tell agents to ask when ambiguous: %q", got.Guidance)
+	}
+}
+
+func TestTicketCreateDryRunIncludesIssueTypes(t *testing.T) {
+	app := newTestApp(t, nil)
+	res, err := app.cmdTicketCreate([]string{
+		"--company", "123",
+		"--title", "x",
+		"--desc", "what it's about",
+		"--issue-type", "10",
+		"--sub-issue-type", "200",
+		"--dry-run",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields, _ := dataMap(t, res)["fields"].(map[string]any)
+	if asInt64(fields["issueType"]) != 10 || asInt64(fields["subIssueType"]) != 200 {
+		t.Fatalf("fields = %+v", fields)
+	}
+}
+
+func TestTicketCreateRejectsSubIssueWithoutIssueType(t *testing.T) {
+	app := newTestApp(t, nil)
+	if _, err := app.cmdTicketCreate([]string{
+		"--company", "123",
+		"--title", "x",
+		"--desc", "what it's about",
+		"--sub-issue-type", "200",
+		"--dry-run",
+	}); err == nil {
+		t.Fatal("expected --sub-issue-type without --issue-type to fail")
+	}
+}
+
 func TestTicketCreateReal(t *testing.T) {
 	fc := &fakeClient{}
 	app := newTestApp(t, fc)

@@ -255,7 +255,7 @@ func TestM365ToolsListIsFilteredByProfileScopes(t *testing.T) {
 		name, _ := tool["name"].(string)
 		names[name] = true
 	}
-	if !names["ticket_search"] || !names["ticket_show"] {
+	if !names["ticket_search"] || !names["ticket_issue-types"] || !names["ticket_show"] {
 		t.Fatalf("ticket read tools missing: %v", names)
 	}
 	if names["ticket_create"] || names["time_add"] || names["report"] {

@@ -107,7 +107,9 @@ config   doctor | show | set <key> <value>
 company  search <query> | alias <name> <companyID>
 resource search <name|email>
 ticket   search [--company <a|id>] <text> [--limit N]
-         create --company <a|id> --title "..." [--desc] [--dry-run]
+         issue-types
+         create --company <a|id> --title "..." --desc "..."
+                [--issue-type <id>] [--sub-issue-type <id>] [--dry-run]
          show <id>
          close <id> [--dry-run]
 timer    start --company <a|id> [--title] [--desc] [--ticket <id>] [--no-ticket]
@@ -117,7 +119,8 @@ timer    start --company <a|id> [--title] [--desc] [--ticket <id>] [--no-ticket]
          pause | resume | switch [session]
          stop [session] [--hours X] [--date YYYY-MM-DD] [--note "..."] [--close] [--dry-run]
 time     add (--ticket <id> | --company <a|id>) [--title] [--desc]
-             --windows "11-12,13-15" [--date YYYY-MM-DD] [--note] [--close] [--dry-run]
+             [--issue-type <id>] [--sub-issue-type <id>] --windows "11-12,13-15"
+             [--date YYYY-MM-DD] [--note] [--close] [--dry-run]
 report   [--company <a|id>] [--match <text>] [--ticket <id>]
          [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--format json|md] [--limit N] [--out FILE]
 ui       [--port N] [--no-open]    open a local config panel in your browser
@@ -136,6 +139,11 @@ Notes:
   `--windows "11-12,13-15"` is recorded as the actual windows (1 h + 2 h) instead
   of one merged 3 h block. Per-window notes via `--windows "11-12=did X,13-15=did Y"`;
   otherwise `--note` is applied to each.
+- `ticket issue-types` lists the active Autotask issue type and sub-issue type
+  picklists. Use those IDs with `ticket create` or with `time add` when it creates
+  a new ticket via `--company`. Sub-issue types are parented to one issue type;
+  agents should ask the user when the available context is ambiguous rather than
+  guessing a category.
 - Use `--dry-run` on any write to preview the exact payload first.
 - `report --match <keyword>` finds tickets by title keyword (across the whole
   account, or a single `--company`) and aggregates them in one call — ideal for a
@@ -190,8 +198,9 @@ atem serve --addr :8080 --toolset m365
 
 The `/mcp` endpoint accepts Streamable HTTP-style JSON-RPC POSTs. The `m365`
 toolset is intentionally narrower than local stdio MCP: it exposes company and
-ticket lookup, ticket creation, explicit time windows, and reports, while hiding
-local/admin tools such as config, resource search, timers, and ticket close.
+ticket lookup, ticket issue-type discovery, ticket creation, explicit time
+windows, and reports, while hiding local/admin tools such as config, resource
+search, timers, and ticket close.
 
 Container builds default to this hosted mode:
 

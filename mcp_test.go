@@ -163,7 +163,7 @@ func TestM365MCPSurfaceFiltersTools(t *testing.T) {
 		name, _ := tool["name"].(string)
 		names[name] = true
 	}
-	want := []string{"company_search", "ticket_search", "ticket_show", "ticket_create", "time_add", "report"}
+	want := []string{"company_search", "ticket_search", "ticket_issue-types", "ticket_show", "ticket_create", "time_add", "report"}
 	for _, name := range want {
 		if !names[name] {
 			t.Errorf("M365 surface missing %s; got %v", name, names)
@@ -333,6 +333,9 @@ func TestHTTPMCPToolsListM365(t *testing.T) {
 	}
 	if !names["time_add"] {
 		t.Fatalf("HTTP M365 tools missing time_add: %v", names)
+	}
+	if !names["ticket_issue-types"] {
+		t.Fatalf("HTTP M365 tools missing ticket_issue-types: %v", names)
 	}
 	if names["config_set"] || names["ticket_close"] {
 		t.Fatalf("HTTP M365 tools leaked blocked tools: %v", names)
