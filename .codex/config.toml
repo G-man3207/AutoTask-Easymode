@@ -1,0 +1,3 @@
+[mcp_servers.atem]
+command = 'C:\Github\AutoTask-Easymode\atem.exe'
+args = ["mcp"]
