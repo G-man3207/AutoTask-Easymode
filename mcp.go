@@ -18,6 +18,38 @@ var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 // request one. atem echoes the client's requested version when present.
 const mcpProtocolVersion = "2024-11-05"
 
+// mcpSurface is the command/resource/prompt surface exposed to one class of MCP
+// client. Local stdio agents get the full CLI-shaped surface; remote Microsoft
+// 365 Copilot gets a deliberately smaller set that excludes local/admin tools.
+type mcpSurface struct {
+	commands              []command
+	includeConfigResource bool
+	prompts               []mcpPrompt
+}
+
+func localMCPSurface() mcpSurface {
+	return mcpSurface{commands: commands, includeConfigResource: true, prompts: mcpPromptList}
+}
+
+var m365MCPCommandNames = map[string]bool{
+	"company search": true,
+	"ticket search":  true,
+	"ticket show":    true,
+	"ticket create":  true,
+	"time add":       true,
+	"report":         true,
+}
+
+func m365MCPSurface() mcpSurface {
+	var safe []command
+	for _, c := range commands {
+		if m365MCPCommandNames[c.Name] {
+			safe = append(safe, c)
+		}
+	}
+	return mcpSurface{commands: safe, prompts: mcpPromptList}
+}
+
 // JSON-RPC 2.0 envelopes (the subset MCP over stdio uses).
 type rpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -45,11 +77,12 @@ func (a *App) serveMCP(in io.Reader, out io.Writer) int {
 	r := bufio.NewReader(in)
 	enc := json.NewEncoder(out)
 	enc.SetEscapeHTML(false)
+	surface := localMCPSurface()
 	for {
 		line, err := r.ReadBytes('\n')
 		line = bytes.TrimPrefix(line, utf8BOM)
 		if strings.TrimSpace(string(line)) != "" {
-			if resp, reply := a.handleRPC(line); reply {
+			if resp, reply := a.handleRPCWithSurface(line, surface); reply {
 				_ = enc.Encode(resp)
 			}
 		}
@@ -62,6 +95,10 @@ func (a *App) serveMCP(in io.Reader, out io.Writer) int {
 // handleRPC processes one JSON-RPC message and returns the response to send (or
 // reply=false for notifications, which get no response).
 func (a *App) handleRPC(line []byte) (rpcResponse, bool) {
+	return a.handleRPCWithSurface(line, localMCPSurface())
+}
+
+func (a *App) handleRPCWithSurface(line []byte, surface mcpSurface) (rpcResponse, bool) {
 	var req rpcRequest
 	if err := json.Unmarshal(line, &req); err != nil {
 		return rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "parse error"}}, true
@@ -77,27 +114,27 @@ func (a *App) handleRPC(line []byte) (rpcResponse, bool) {
 	case "ping":
 		resp.Result = map[string]any{}
 	case "tools/list":
-		resp.Result = map[string]any{"tools": mcpTools()}
+		resp.Result = map[string]any{"tools": mcpToolsFor(surface.commands)}
 	case "tools/call":
-		result, rerr := a.mcpToolsCall(req.Params)
+		result, rerr := a.mcpToolsCallWithSurface(req.Params, surface)
 		if rerr != nil {
 			resp.Error = rerr
 		} else {
 			resp.Result = result
 		}
 	case "resources/list":
-		resp.Result = map[string]any{"resources": mcpResources()}
+		resp.Result = map[string]any{"resources": mcpResourcesFor(surface)}
 	case "resources/read":
-		result, rerr := a.mcpResourcesRead(req.Params)
+		result, rerr := a.mcpResourcesReadWithSurface(req.Params, surface)
 		if rerr != nil {
 			resp.Error = rerr
 		} else {
 			resp.Result = result
 		}
 	case "prompts/list":
-		resp.Result = map[string]any{"prompts": mcpPrompts()}
+		resp.Result = map[string]any{"prompts": mcpPromptsFor(surface.prompts)}
 	case "prompts/get":
-		result, rerr := mcpPromptsGet(req.Params)
+		result, rerr := mcpPromptsGetFrom(req.Params, surface.prompts)
 		if rerr != nil {
 			resp.Error = rerr
 		} else {
@@ -134,8 +171,12 @@ func mcpToolName(name string) string { return strings.ReplaceAll(name, " ", "_")
 
 // mcpTools builds the tools/list payload from the registry.
 func mcpTools() []map[string]any {
-	tools := make([]map[string]any, 0, len(commands))
-	for _, c := range commands {
+	return mcpToolsFor(localMCPSurface().commands)
+}
+
+func mcpToolsFor(cmds []command) []map[string]any {
+	tools := make([]map[string]any, 0, len(cmds))
+	for _, c := range cmds {
 		if c.MCPHidden {
 			continue
 		}
@@ -190,6 +231,10 @@ func mcpInputSchema(c command) map[string]any {
 // mcpToolsCall executes a tool by translating its arguments into a CLI argv and
 // running the same handler the CLI uses, so behavior and write-guards match.
 func (a *App) mcpToolsCall(params json.RawMessage) (map[string]any, *rpcError) {
+	return a.mcpToolsCallWithSurface(params, localMCPSurface())
+}
+
+func (a *App) mcpToolsCallWithSurface(params json.RawMessage, surface mcpSurface) (map[string]any, *rpcError) {
 	var p struct {
 		Name      string         `json:"name"`
 		Arguments map[string]any `json:"arguments"`
@@ -197,9 +242,12 @@ func (a *App) mcpToolsCall(params json.RawMessage) (map[string]any, *rpcError) {
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, &rpcError{Code: -32602, Message: "invalid params"}
 	}
-	c := commandByToolName(p.Name)
+	c := commandByToolNameFor(p.Name, surface.commands)
 	if c == nil {
 		return nil, &rpcError{Code: -32602, Message: "unknown tool: " + p.Name}
+	}
+	if err := a.authorizeCommand(*c); err != nil {
+		return mcpContent(resultText(resultFromError(err)), true), nil
 	}
 	argv, err := buildArgv(*c, p.Arguments)
 	if err != nil {
@@ -217,10 +265,10 @@ func (a *App) mcpToolsCall(params json.RawMessage) (map[string]any, *rpcError) {
 	return out, nil
 }
 
-func commandByToolName(tool string) *command {
-	for i := range commands {
-		if !commands[i].MCPHidden && mcpToolName(commands[i].Name) == tool {
-			return &commands[i]
+func commandByToolNameFor(tool string, cmds []command) *command {
+	for i := range cmds {
+		if !cmds[i].MCPHidden && mcpToolName(cmds[i].Name) == tool {
+			return &cmds[i]
 		}
 	}
 	return nil
@@ -297,15 +345,19 @@ const (
 	resourceConfigURI   = "atem://config"
 )
 
-// mcpResources lists the read-only documents an agent can fetch.
-func mcpResources() []map[string]any {
-	return []map[string]any{
+func mcpResourcesFor(surface mcpSurface) []map[string]any {
+	resources := []map[string]any{
 		{"uri": resourceDescribeURI, "name": "commands", "mimeType": "application/json", "description": "Catalog of every command and flag (same as `atem describe`)."},
-		{"uri": resourceConfigURI, "name": "config", "mimeType": "application/json", "description": "Current configuration, secrets redacted."},
 	}
+	if surface.includeConfigResource {
+		resources = append(resources, map[string]any{
+			"uri": resourceConfigURI, "name": "config", "mimeType": "application/json", "description": "Current configuration, secrets redacted.",
+		})
+	}
+	return resources
 }
 
-func (a *App) mcpResourcesRead(params json.RawMessage) (map[string]any, *rpcError) {
+func (a *App) mcpResourcesReadWithSurface(params json.RawMessage, surface mcpSurface) (map[string]any, *rpcError) {
 	var p struct {
 		URI string `json:"uri"`
 	}
@@ -315,8 +367,11 @@ func (a *App) mcpResourcesRead(params json.RawMessage) (map[string]any, *rpcErro
 	var payload any
 	switch p.URI {
 	case resourceDescribeURI:
-		payload = describeData()
+		payload = map[string]any{"version": version, "commands": surface.commands}
 	case resourceConfigURI:
+		if !surface.includeConfigResource {
+			return nil, &rpcError{Code: -32602, Message: "unknown resource: " + p.URI}
+		}
 		payload = a.configData()
 	default:
 		return nil, &rpcError{Code: -32602, Message: "unknown resource: " + p.URI}
@@ -393,9 +448,9 @@ func argClause(prefix, val string) string {
 	return prefix + val
 }
 
-func mcpPrompts() []map[string]any {
-	out := make([]map[string]any, 0, len(mcpPromptList))
-	for _, p := range mcpPromptList {
+func mcpPromptsFor(prompts []mcpPrompt) []map[string]any {
+	out := make([]map[string]any, 0, len(prompts))
+	for _, p := range prompts {
 		out = append(out, map[string]any{
 			"name": p.name, "description": p.description, "arguments": p.arguments,
 		})
@@ -403,7 +458,7 @@ func mcpPrompts() []map[string]any {
 	return out
 }
 
-func mcpPromptsGet(params json.RawMessage) (map[string]any, *rpcError) {
+func mcpPromptsGetFrom(params json.RawMessage, prompts []mcpPrompt) (map[string]any, *rpcError) {
 	var p struct {
 		Name      string            `json:"name"`
 		Arguments map[string]string `json:"arguments"`
@@ -411,7 +466,7 @@ func mcpPromptsGet(params json.RawMessage) (map[string]any, *rpcError) {
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, &rpcError{Code: -32602, Message: "invalid params"}
 	}
-	for _, pr := range mcpPromptList {
+	for _, pr := range prompts {
 		if pr.name == p.Name {
 			return map[string]any{
 				"description": pr.description,

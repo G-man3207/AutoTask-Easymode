@@ -41,9 +41,9 @@ func (a *App) ticketFields(companyID int, title, desc string) (map[string]any, [
 	// Assign the ticket to the configured resource (with their role) so the work
 	// is owned by you and easy to follow up — this is the ticket's "Primary
 	// Resource (Role)". Autotask requires the role when a resource is assigned.
-	if rid := a.cfg.Resource(); rid != 0 && a.cfg.Defaults.RoleID != 0 {
+	if rid, roleID := a.resourceID(), a.roleID(); rid != 0 && roleID != 0 {
 		fields["assignedResourceID"] = rid
-		fields["assignedResourceRoleID"] = a.cfg.Defaults.RoleID
+		fields["assignedResourceRoleID"] = roleID
 	}
 	return fields, warnings
 }

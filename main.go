@@ -59,6 +59,10 @@ func run(args []string) int {
 		// Long-running MCP server over stdio; it owns stdout, so don't wrap it.
 		return app.serveMCP(os.Stdin, os.Stdout)
 	}
+	if args[0] == "serve" {
+		// Long-running remote MCP server over HTTP for hosted agent clients.
+		return app.serveHTTPCommand(args[1:])
+	}
 	res, err := app.dispatch(args)
 	if err != nil {
 		_ = writeJSON(os.Stdout, resultFromError(err))

@@ -2,7 +2,10 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -153,6 +156,40 @@ func TestMCPToolsList(t *testing.T) {
 	}
 }
 
+func TestM365MCPSurfaceFiltersTools(t *testing.T) {
+	tools := mcpToolsFor(m365MCPSurface().commands)
+	names := map[string]bool{}
+	for _, tool := range tools {
+		name, _ := tool["name"].(string)
+		names[name] = true
+	}
+	want := []string{"company_search", "ticket_search", "ticket_show", "ticket_create", "time_add", "report"}
+	for _, name := range want {
+		if !names[name] {
+			t.Errorf("M365 surface missing %s; got %v", name, names)
+		}
+	}
+	blocked := []string{
+		"company_alias", "resource_search", "ticket_close", "timer_start", "timer_stop", "config_show", "config_set", "config_doctor", "ui",
+	}
+	for _, name := range blocked {
+		if names[name] {
+			t.Errorf("M365 surface exposed blocked tool %s", name)
+		}
+	}
+}
+
+func TestM365MCPSurfaceRejectsBlockedToolCall(t *testing.T) {
+	app := newTestApp(t, &fakeClient{})
+	params, _ := json.Marshal(map[string]any{
+		"name":      "ticket_close",
+		"arguments": map[string]any{"id": 123, "dry-run": true},
+	})
+	if _, rerr := app.mcpToolsCallWithSurface(params, m365MCPSurface()); rerr == nil {
+		t.Fatal("expected blocked M365 tool call to return an RPC error")
+	}
+}
+
 func TestMCPToolsCallDryRun(t *testing.T) {
 	app := newTestApp(t, &fakeClient{})
 	app.cfg.Defaults.QueueID = 8
@@ -247,6 +284,99 @@ func TestMCPResources(t *testing.T) {
 	resp, _ = app.handleRPC([]byte(`{"jsonrpc":"2.0","id":4,"method":"resources/read","params":{"uri":"atem://nope"}}`))
 	if resp.Error == nil {
 		t.Error("expected error for unknown resource")
+	}
+}
+
+func TestM365MCPResourcesExcludeConfig(t *testing.T) {
+	app := newTestApp(t, &fakeClient{})
+	surface := m365MCPSurface()
+
+	resp, _ := app.handleRPCWithSurface([]byte(`{"jsonrpc":"2.0","id":1,"method":"resources/list"}`), surface)
+	result, _ := resp.Result.(map[string]any)
+	list, _ := result["resources"].([]map[string]any)
+	for _, resource := range list {
+		if resource["uri"] == resourceConfigURI {
+			t.Fatal("M365 surface must not expose config resource")
+		}
+	}
+
+	resp, _ = app.handleRPCWithSurface([]byte(`{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"atem://config"}}`), surface)
+	if resp.Error == nil {
+		t.Fatal("M365 config resource read should fail")
+	}
+}
+
+func TestHTTPMCPToolsListM365(t *testing.T) {
+	app := newTestApp(t, &fakeClient{})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	rr := httptest.NewRecorder()
+
+	app.mcpHTTPHandler(m365MCPSurface(), noAuthenticator{}).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %q", rr.Code, rr.Body.String())
+	}
+	var resp struct {
+		Result struct {
+			Tools []struct {
+				Name string `json:"name"`
+			} `json:"tools"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("response JSON: %v", err)
+	}
+	names := map[string]bool{}
+	for _, tool := range resp.Result.Tools {
+		names[tool.Name] = true
+	}
+	if !names["time_add"] {
+		t.Fatalf("HTTP M365 tools missing time_add: %v", names)
+	}
+	if names["config_set"] || names["ticket_close"] {
+		t.Fatalf("HTTP M365 tools leaked blocked tools: %v", names)
+	}
+}
+
+func TestHTTPMCPNotificationAccepted(t *testing.T) {
+	app := newTestApp(t, &fakeClient{})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","method":"notifications/initialized"}`))
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	rr := httptest.NewRecorder()
+
+	app.mcpHTTPHandler(m365MCPSurface(), noAuthenticator{}).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("status = %d body = %q", rr.Code, rr.Body.String())
+	}
+	if body := strings.TrimSpace(rr.Body.String()); body != "" {
+		t.Fatalf("notification should not return a body, got %q", body)
+	}
+}
+
+func TestHTTPMCPRequiresStreamableAccept(t *testing.T) {
+	app := newTestApp(t, &fakeClient{})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}`))
+	req.Header.Set("Accept", "application/json")
+	rr := httptest.NewRecorder()
+
+	app.mcpHTTPHandler(m365MCPSurface(), noAuthenticator{}).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotAcceptable {
+		t.Fatalf("status = %d body = %q", rr.Code, rr.Body.String())
+	}
+}
+
+func TestHTTPHealthz(t *testing.T) {
+	app := newTestApp(t, &fakeClient{})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", http.NoBody)
+	rr := httptest.NewRecorder()
+
+	app.mcpHTTPHandler(m365MCPSurface(), noAuthenticator{}).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK || strings.TrimSpace(rr.Body.String()) != `{"ok":true}` {
+		t.Fatalf("healthz status/body = %d %q", rr.Code, rr.Body.String())
 	}
 }
 

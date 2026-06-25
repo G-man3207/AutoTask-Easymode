@@ -1,6 +1,7 @@
 package main
 
 import (
+	"autotask-easymode/internal/config"
 	"io"
 	"os"
 	"strings"
@@ -72,5 +73,27 @@ func TestRunEndToEnd(t *testing.T) {
 	out = captureStdout(t, func() { code = run([]string{"nope"}) })
 	if code != 1 || !strings.Contains(out, `"ok": false`) {
 		t.Errorf("unknown via run: code=%d out=%q", code, out)
+	}
+}
+
+func TestApplyEnvDefaults(t *testing.T) {
+	t.Setenv("ATEM_QUEUE_ID", "12")
+	t.Setenv("ATEM_TICKET_STATUS_NEW", "8")
+	t.Setenv("ATEM_TICKET_STATUS_COMPLETE", "5")
+	t.Setenv("ATEM_FLAG_HOURS_ALWAYS", "16")
+	cfg := &config.Config{}
+	if err := applyEnvDefaults(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Defaults.QueueID != 12 || cfg.Defaults.TicketStatusNew != 8 || cfg.Defaults.TicketStatusComplete != 5 || cfg.Defaults.FlagHoursAlways != 16 {
+		t.Fatalf("defaults = %+v", cfg.Defaults)
+	}
+}
+
+func TestApplyEnvDefaultsRejectsInvalidInt(t *testing.T) {
+	t.Setenv("ATEM_QUEUE_ID", "not-a-number")
+	cfg := &config.Config{}
+	if err := applyEnvDefaults(cfg); err == nil {
+		t.Fatal("expected invalid int to fail")
 	}
 }

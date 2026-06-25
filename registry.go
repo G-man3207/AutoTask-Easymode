@@ -322,6 +322,7 @@ func usageText() string {
 	b.WriteString("\nAGENT / INTROSPECTION\n")
 	b.WriteString("  atem describe        JSON of every command/flag (no config needed)\n")
 	b.WriteString("  atem mcp             run as an MCP server over stdio (tools = commands)\n")
+	b.WriteString("  atem serve           run remote MCP over HTTP (default toolset = m365)\n")
 	b.WriteString("\nOTHER\n  atem help\n  atem version\n")
 	b.WriteString("\nNOTES\n")
 	b.WriteString("  Credentials resolve from env first (ATEM_USERNAME, ATEM_SECRET,\n")

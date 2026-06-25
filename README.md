@@ -180,6 +180,68 @@ reflection from the result structs the handlers return. So nothing in the
 agent-facing surface can drift from what `atem` actually does. MCP tool calls run
 the same handlers (and the same `--dry-run`/write-guards) as the CLI.
 
+### Remote MCP for Microsoft 365 Copilot
+
+`atem serve` exposes MCP over HTTP for hosted agent clients:
+
+```pwsh
+atem serve --addr :8080 --toolset m365
+```
+
+The `/mcp` endpoint accepts Streamable HTTP-style JSON-RPC POSTs. The `m365`
+toolset is intentionally narrower than local stdio MCP: it exposes company and
+ticket lookup, ticket creation, explicit time windows, and reports, while hiding
+local/admin tools such as config, resource search, timers, and ticket close.
+
+Container builds default to this hosted mode:
+
+```pwsh
+docker build -t atem-mcp .
+docker run --rm -p 8080:8080 atem-mcp
+```
+
+This is the transport foundation for Microsoft 365 Copilot. The next production
+layer is Entra-authenticated profile mapping so each request is pinned to the
+calling technician's Autotask `resourceId`/`roleId` server-side. Enable it with:
+
+```pwsh
+atem serve --auth entra --tenant-id <tenant-guid> --audience <api-client-id-or-app-id-uri>
+```
+
+For Container Apps, set these environment variables instead:
+
+| Variable | Meaning |
+|---|---|
+| `ATEM_AUTH_MODE=entra` | require bearer tokens on `/mcp` |
+| `ATEM_ENTRA_TENANT_ID` | expected Entra tenant id (`tid`) |
+| `ATEM_ENTRA_AUDIENCE` | expected token audience (`aud`) |
+| `ATEM_AUTH_PROFILES` | JSON array mapping Entra users to Autotask ids |
+| `ATEM_AUTH_PROFILE_FILE` | optional path alternative to `ATEM_AUTH_PROFILES` |
+| `ATEM_ENTRA_METADATA_URL` | optional OIDC metadata override for tests/sovereign clouds |
+| `ATEM_QUEUE_ID` | default queue for created tickets |
+| `ATEM_TICKET_STATUS_NEW` | status id for created tickets |
+| `ATEM_TICKET_STATUS_COMPLETE` | status id for close flows |
+| `ATEM_PRIORITY` | optional default ticket priority |
+
+Example profile JSON:
+
+```json
+[
+  {
+    "tenantId": "00000000-0000-0000-0000-000000000000",
+    "objectId": "11111111-1111-1111-1111-111111111111",
+    "resourceId": 29682903,
+    "roleId": 29683464,
+    "scopes": ["company:read", "ticket:read", "ticket:create", "time:add", "report:read"]
+  }
+]
+```
+
+The hosted server verifies the Entra JWT signature and issuer via OpenID
+discovery/JWKS, checks tenant/audience/lifetime, then looks up `tid+oid` in the
+profile list. Autotask `resourceID`, `roleID`, `assignedResourceID`, and
+`assignedResourceRoleID` are injected server-side from that profile.
+
 ## Safety
 
 `atem` writes real, billable data to your customer's PSA. Writes are explicit

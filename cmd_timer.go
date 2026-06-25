@@ -238,7 +238,7 @@ func (a *App) cmdTimerStop(args []string) (*cmdResult, error) {
 		return nil, err
 	}
 
-	resourceID := a.cfg.Resource()
+	resourceID := a.resourceID()
 	if resourceID == 0 {
 		return nil, hinted(
 			"find yours via `atem resource search <your name>`, then `atem config set resourceId <id>` (or set ATEM_RESOURCE_ID)",
@@ -374,8 +374,8 @@ func (a *App) timeEntryFieldsWindow(resourceID int, ticketID int64, start, end t
 	if a.cfg.Defaults.BillingCodeID != 0 {
 		fields["billingCodeID"] = a.cfg.Defaults.BillingCodeID
 	}
-	if a.cfg.Defaults.RoleID != 0 {
-		fields["roleID"] = a.cfg.Defaults.RoleID
+	if roleID := a.roleID(); roleID != 0 {
+		fields["roleID"] = roleID
 	}
 	return fields
 }

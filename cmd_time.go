@@ -36,7 +36,7 @@ func (a *App) cmdTimeAdd(args []string) (*cmdResult, error) {
 		return nil, usageErr("time add", err)
 	}
 
-	resourceID := a.cfg.Resource()
+	resourceID := a.resourceID()
 	if resourceID == 0 {
 		return nil, hinted(
 			"find yours via `atem resource search <your name>`, then `atem config set resourceId <id>` (or set ATEM_RESOURCE_ID)",
