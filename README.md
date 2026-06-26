@@ -140,10 +140,11 @@ Notes:
   of one merged 3 h block. Per-window notes via `--windows "11-12=did X,13-15=did Y"`;
   otherwise `--note` is applied to each.
 - `ticket issue-types` lists the active Autotask issue type and sub-issue type
-  picklists. Use those IDs with `ticket create` or with `time add` when it creates
-  a new ticket via `--company`. Sub-issue types are parented to one issue type;
-  agents should ask the user when the available context is ambiguous rather than
-  guessing a category.
+  picklists. Most new tickets should be classified with those IDs via
+  `ticket create` or `time add` when it creates a new ticket via `--company`;
+  omitting them should be the exception. Sub-issue types are parented to one issue
+  type; agents should ask the user when the available context is ambiguous rather
+  than guessing a category.
 - Use `--dry-run` on any write to preview the exact payload first.
 - `report --match <keyword>` finds tickets by title keyword (across the whole
   account, or a single `--company`) and aggregates them in one call — ideal for a

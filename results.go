@@ -155,11 +155,12 @@ type TimerStopDryRun struct {
 // --- time add ---
 
 type TimeAddResult struct {
-	TicketID     int64   `json:"ticketId"`
-	TimeEntryIDs []int64 `json:"timeEntryIds"`
-	Date         string  `json:"date"`
-	TotalHours   float64 `json:"totalHours"`
-	Closed       bool    `json:"closed"`
+	TicketID     int64    `json:"ticketId"`
+	TimeEntryIDs []int64  `json:"timeEntryIds"`
+	Date         string   `json:"date"`
+	TotalHours   float64  `json:"totalHours"`
+	Closed       bool     `json:"closed"`
+	Warnings     []string `json:"warnings"`
 }
 
 type TimeAddDryRun struct {
@@ -168,6 +169,7 @@ type TimeAddDryRun struct {
 	Entries      []map[string]any `json:"entries"`
 	TotalHours   float64          `json:"totalHours"`
 	CloseTicket  bool             `json:"closeTicket"`
+	Warnings     []string         `json:"warnings"`
 }
 
 // --- report ---

@@ -166,6 +166,7 @@ func TestTimeAddCreatesEntriesAndCloses(t *testing.T) {
 func TestTimeAddCreateTicketIncludesIssueTypes(t *testing.T) {
 	app := newTestApp(t, &fakeClient{})
 	app.cfg.ResourceID = 55
+	app.cfg.Defaults.QueueID = 8
 
 	res, err := app.cmdTimeAdd([]string{
 		"--company", "0",
@@ -183,6 +184,37 @@ func TestTimeAddCreateTicketIncludesIssueTypes(t *testing.T) {
 	createTicket, _ := dataMap(t, res)["createTicket"].(map[string]any)
 	if asInt64(createTicket["issueType"]) != 10 || asInt64(createTicket["subIssueType"]) != 200 {
 		t.Fatalf("createTicket = %+v", createTicket)
+	}
+	data, ok := res.data.(TimeAddDryRun)
+	if !ok {
+		t.Fatalf("data = %T", res.data)
+	}
+	if warningsContain(data.Warnings, "classified") {
+		t.Fatalf("did not expect classification warning, got %v", data.Warnings)
+	}
+}
+
+func TestTimeAddCreateTicketWarnsWithoutIssueTypes(t *testing.T) {
+	app := newTestApp(t, &fakeClient{})
+	app.cfg.ResourceID = 55
+
+	res, err := app.cmdTimeAdd([]string{
+		"--company", "0",
+		"--title", "Website",
+		"--desc", "Work on website",
+		"--windows", "11-12",
+		"--note", "Reviewed publish issue",
+		"--dry-run",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, ok := res.data.(TimeAddDryRun)
+	if !ok {
+		t.Fatalf("data = %T", res.data)
+	}
+	if !warningsContain(data.Warnings, "most new tickets should be classified") {
+		t.Fatalf("expected missing-classification warning, got %v", data.Warnings)
 	}
 }
 

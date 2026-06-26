@@ -57,6 +57,13 @@ func TestTicketCreateDryRun(t *testing.T) {
 	if !res.dryRun {
 		t.Error("expected dryRun result")
 	}
+	data, ok := res.data.(TicketCreateDryRun)
+	if !ok {
+		t.Fatalf("data = %T", res.data)
+	}
+	if !warningsContain(data.Warnings, "most new tickets should be classified") {
+		t.Fatalf("expected missing-classification warning, got %v", data.Warnings)
+	}
 }
 
 func TestTicketIssueTypesGroupsSubIssues(t *testing.T) {
@@ -98,6 +105,7 @@ func TestTicketIssueTypesGroupsSubIssues(t *testing.T) {
 
 func TestTicketCreateDryRunIncludesIssueTypes(t *testing.T) {
 	app := newTestApp(t, nil)
+	app.cfg.Defaults.QueueID = 8
 	res, err := app.cmdTicketCreate([]string{
 		"--company", "123",
 		"--title", "x",
@@ -112,6 +120,13 @@ func TestTicketCreateDryRunIncludesIssueTypes(t *testing.T) {
 	fields, _ := dataMap(t, res)["fields"].(map[string]any)
 	if asInt64(fields["issueType"]) != 10 || asInt64(fields["subIssueType"]) != 200 {
 		t.Fatalf("fields = %+v", fields)
+	}
+	data, ok := res.data.(TicketCreateDryRun)
+	if !ok {
+		t.Fatalf("data = %T", res.data)
+	}
+	if warningsContain(data.Warnings, "classified") {
+		t.Fatalf("did not expect classification warning, got %v", data.Warnings)
 	}
 }
 

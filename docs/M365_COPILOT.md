@@ -22,8 +22,10 @@ between today's local CLI/MCP server and a tenant-deployable Copilot plugin.
   `ticket create`, `timer stop`, or `time add` commands.
 - The hosted toolset includes `ticket issue-types`, a read-only metadata tool
   that exposes active Autotask issue/sub-issue picklists. Agents can use it to
-  categorize new tickets, but should ask the user before creating a ticket when
-  the available Microsoft 365/work context does not clearly map to one option.
+  categorize new tickets. Classification is the norm for new tickets, not an
+  optional extra; agents should omit it only for genuinely unclear or unusual
+  cases and ask the user before creating a ticket when the available Microsoft
+  365/work context does not clearly map to one option.
 - Copilot Studio MCP connections can become stale when the Entra access token
   expires. Request `offline_access` in the OAuth scopes and, if Copilot still
   does not refresh silently, assign an app-scoped Entra access-token lifetime

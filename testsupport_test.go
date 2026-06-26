@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -129,4 +130,13 @@ func dataMap(t *testing.T, res *cmdResult) map[string]any {
 		t.Fatalf("data is not a JSON object (%T): %v", res.data, err)
 	}
 	return m
+}
+
+func warningsContain(warnings []string, needle string) bool {
+	for _, warning := range warnings {
+		if strings.Contains(warning, needle) {
+			return true
+		}
+	}
+	return false
 }

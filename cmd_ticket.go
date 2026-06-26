@@ -27,8 +27,9 @@ func (a *App) ticketFields(companyID int, title, desc string) (map[string]any, [
 }
 
 type ticketFieldOptions struct {
-	issueType    int
-	subIssueType int
+	issueType            int
+	subIssueType         int
+	preferClassification bool
 }
 
 func (o ticketFieldOptions) validate() error {
@@ -60,6 +61,7 @@ func (a *App) ticketFieldsWithOptions(companyID int, title, desc string, opts ti
 	} else {
 		warnings = append(warnings, "defaults.queueId is not set; Autotask usually requires queueID to create a ticket")
 	}
+	warnings = append(warnings, opts.classificationWarnings()...)
 	if strings.TrimSpace(desc) != "" {
 		fields["description"] = desc
 	}
@@ -71,6 +73,20 @@ func (a *App) ticketFieldsWithOptions(companyID int, title, desc string, opts ti
 		fields["assignedResourceRoleID"] = roleID
 	}
 	return fields, warnings
+}
+
+func (o ticketFieldOptions) classificationWarnings() []string {
+	if !o.preferClassification {
+		return nil
+	}
+	switch {
+	case o.issueType == 0:
+		return []string{"issueType/subIssueType are unset; most new tickets should be classified with ticket issue-types, and omitting them should be an exception for genuinely unclear or unusual cases"}
+	case o.subIssueType == 0:
+		return []string{"subIssueType is unset; most classified tickets should include a sub-issue type from the selected issue type unless no suitable option exists"}
+	default:
+		return nil
+	}
 }
 
 func (a *App) cmdTicketIssueTypes(args []string) (*cmdResult, error) {
@@ -115,7 +131,7 @@ func ticketIssueTypesFromFields(fields []atapi.Field) TicketIssueTypesResult {
 		Count:         len(issues),
 		SubIssueCount: subIssueCount,
 		IssueTypes:    issues,
-		Guidance:      "Use these ids with ticket_create/time_add flags issue-type and sub-issue-type. Only choose when the request clearly matches; if several options fit or the information is too thin, ask the user before creating the ticket. A sub-issue id must belong to the selected issue type.",
+		Guidance:      "Use these ids with ticket_create/time_add flags issue-type and sub-issue-type. Treat issue/sub-issue classification as expected for new tickets, not optional polish. Only omit it for genuinely unclear or unusual cases; if several options fit or the information is too thin, ask the user before creating the ticket. A sub-issue id must belong to the selected issue type.",
 	}
 }
 
@@ -179,7 +195,7 @@ func (a *App) cmdTicketCreate(args []string) (*cmdResult, error) {
 	if err := fs.Parse(args); err != nil {
 		return nil, usageErr("ticket create", err)
 	}
-	opts := ticketFieldOptions{issueType: *issueType, subIssueType: *subIssueType}
+	opts := ticketFieldOptions{issueType: *issueType, subIssueType: *subIssueType, preferClassification: true}
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}

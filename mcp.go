@@ -419,8 +419,9 @@ var mcpPromptList = []mcpPrompt{
 				"--windows so each window becomes its own entry — never one merged block.\n" +
 				"- One ticket per distinct task; search for an existing ticket and attach to it, " +
 				"else create one. company id 0 is valid (the owner org).\n" +
-				"- When creating a ticket, use ticket_issue-types to choose issue-type/sub-issue-type " +
-				"only when the user's information is clear; ask first if it is ambiguous.\n" +
+				"- When creating a ticket, treat issue-type/sub-issue-type as expected, not optional. " +
+				"Use ticket_issue-types to choose them. Omit them only for genuinely unclear or unusual cases; " +
+				"ask first if it is ambiguous.\n" +
 				"- Every time entry needs a note. Preview writes with dry-run and confirm with me " +
 				"before logging anything."
 		},

@@ -37,7 +37,7 @@ func (a *App) cmdTimeAdd(args []string) (*cmdResult, error) {
 	if err := fs.Parse(args); err != nil {
 		return nil, usageErr("time add", err)
 	}
-	ticketOpts := ticketFieldOptions{issueType: *issueType, subIssueType: *subIssueType}
+	ticketOpts := ticketFieldOptions{issueType: *issueType, subIssueType: *subIssueType, preferClassification: strings.TrimSpace(*company) != ""}
 	if err := ticketOpts.validate(); err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (a *App) cmdTimeAdd(args []string) (*cmdResult, error) {
 		return nil, err
 	}
 
-	createTicket, err := a.timeAddTicket(*ticket, *company, *title, *desc, day, ticketOpts)
+	createTicket, warnings, err := a.timeAddTicket(*ticket, *company, *title, *desc, day, ticketOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -83,48 +83,49 @@ func (a *App) cmdTimeAdd(args []string) (*cmdResult, error) {
 			Entries:      entries,
 			TotalHours:   total,
 			CloseTicket:  *closeTicket,
+			Warnings:     warnings,
 		}}, nil
 	}
-	return a.executeTimeAdd(createTicket, entries, *closeTicket, day, total)
+	return a.executeTimeAdd(createTicket, entries, *closeTicket, day, total, warnings)
 }
 
 // timeAddTicket resolves the ticket to log against: nil create payload when an
 // existing --ticket is given, otherwise the fields to create one from --company.
-func (a *App) timeAddTicket(ticket int64, company, title, desc string, day time.Time, opts ticketFieldOptions) (map[string]any, error) {
+func (a *App) timeAddTicket(ticket int64, company, title, desc string, day time.Time, opts ticketFieldOptions) (map[string]any, []string, error) {
 	switch {
 	case ticket != 0:
 		if opts.issueType != 0 || opts.subIssueType != 0 {
-			return nil, hinted(
+			return nil, nil, hinted(
 				"omit issue flags with --ticket, or create a new ticket via --company so atem can set them",
 				"issue type can only be set when time add creates a ticket",
 			)
 		}
-		return nil, nil
+		return nil, nil, nil
 	case strings.TrimSpace(company) != "":
 		// Creating a ticket: it must carry a description for the customer. (When
 		// logging against an existing --ticket above, no ticket is created, so no
 		// description is needed here.)
 		if derr := requireDescription(desc); derr != nil {
-			return nil, derr
+			return nil, nil, derr
 		}
 		companyID, err := a.cfg.ResolveCompany(company)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		t := strings.TrimSpace(title)
 		if t == "" {
 			t = "Arbete " + day.Format(dateLayout)
 		}
-		fields, _ := a.ticketFieldsWithOptions(companyID, t, desc, opts)
-		return fields, nil
+		fields, warnings := a.ticketFieldsWithOptions(companyID, t, desc, opts)
+		return fields, warnings, nil
 	default:
-		return nil, hinted("pass --ticket <id> or --company <alias|id>", "no ticket to log against")
+		return nil, nil, hinted("pass --ticket <id> or --company <alias|id>", "no ticket to log against")
 	}
 }
 
 // executeTimeAdd performs the Autotask writes for time add: optionally create a
 // ticket, create one time entry per window, optionally close the ticket.
-func (a *App) executeTimeAdd(createTicket map[string]any, entries []map[string]any, closeTicket bool, day time.Time, total float64) (*cmdResult, error) {
+func (a *App) executeTimeAdd(createTicket map[string]any, entries []map[string]any, closeTicket bool, day time.Time, total float64, warnings []string) (*cmdResult, error) {
 	ctx, cancel := cmdContext()
 	defer cancel()
 	client, err := a.newClient(ctx)
@@ -169,6 +170,7 @@ func (a *App) executeTimeAdd(createTicket map[string]any, entries []map[string]a
 		Date:         day.Format(dateLayout),
 		TotalHours:   total,
 		Closed:       closed,
+		Warnings:     warnings,
 	}}, nil
 }
 
