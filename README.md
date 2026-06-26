@@ -105,11 +105,15 @@ see **[docs/AUTOTASK.md](docs/AUTOTASK.md)**.
 ```
 config   doctor | show | set <key> <value>
 company  search <query> | alias <name> <companyID>
+contact  search --company <a|id> <name|email> [--limit N]
+         create --company <a|id> --first-name "..." --last-name "..." --email "..."
+                [--dry-run]
 resource search <name|email>
 ticket   search [--company <a|id>] <text> [--limit N]
          issue-types
          create --company <a|id> --title "..." --desc "..."
-                [--issue-type <id>] [--sub-issue-type <id>] [--dry-run]
+                [--issue-type <id>] [--sub-issue-type <id>] [--contact <id>]
+                [--dry-run]
          show <id>
          close <id> [--dry-run]
 timer    start --company <a|id> [--title] [--desc] [--ticket <id>] [--no-ticket]
@@ -119,8 +123,9 @@ timer    start --company <a|id> [--title] [--desc] [--ticket <id>] [--no-ticket]
          pause | resume | switch [session]
          stop [session] [--hours X] [--date YYYY-MM-DD] [--note "..."] [--close] [--dry-run]
 time     add (--ticket <id> | --company <a|id>) [--title] [--desc]
-             [--issue-type <id>] [--sub-issue-type <id>] --windows "11-12,13-15"
-             [--date YYYY-MM-DD] [--note] [--close] [--dry-run]
+             [--issue-type <id>] [--sub-issue-type <id>] [--contact <id>]
+             --windows "11-12,13-15" [--date YYYY-MM-DD] [--note] [--close]
+             [--dry-run]
 report   [--company <a|id>] [--match <text>] [--ticket <id>]
          [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--format json|md] [--limit N] [--out FILE]
 ui       [--port N] [--no-open]    open a local config panel in your browser
@@ -145,6 +150,11 @@ Notes:
   omitting them should be the exception. Sub-issue types are parented to one issue
   type; agents should ask the user when the available context is ambiguous rather
   than guessing a category.
+- `contact search --company <a|id> <person>` finds active contacts for a customer.
+  When the work involved a named customer person, pass the returned id as
+  `--contact` on `ticket create` or on `time add` when it creates a ticket. If no
+  match is found, the agent should ask before creating a new contact, then collect
+  first name, last name, and email for `contact create --dry-run`/commit.
 - Use `--dry-run` on any write to preview the exact payload first.
 - `report --match <keyword>` finds tickets by title keyword (across the whole
   account, or a single `--company`) and aggregates them in one call — ideal for a
@@ -199,9 +209,9 @@ atem serve --addr :8080 --toolset m365
 
 The `/mcp` endpoint accepts Streamable HTTP-style JSON-RPC POSTs. The `m365`
 toolset is intentionally narrower than local stdio MCP: it exposes company and
-ticket lookup, ticket issue-type discovery, ticket creation, explicit time
-windows, and reports, while hiding local/admin tools such as config, resource
-search, timers, and ticket close.
+contact lookup/create, ticket lookup, ticket issue-type discovery, ticket
+creation, explicit time windows, and reports, while hiding local/admin tools
+such as config, resource search, timers, and ticket close.
 
 Container builds default to this hosted mode:
 
@@ -303,9 +313,10 @@ Entra access-token lifetime policy to the MCP API app, for example 8 hours:
 Recommended Copilot Studio setup: add Microsoft's **Work IQ User MCP** connector
 alongside ATEM MCP. Work IQ can read the signed-in user's Microsoft 365 context
 such as Outlook and Teams, which gives the agent useful raw material for "what
-did I work on today?" prompts. ATEM MCP should remain the only tool that writes
-to Autotask; use Work IQ for user/day context and ATEM for ticket lookup, ticket
-creation, time entries, and reports.
+did I work on today?" and "who did I talk to?" prompts. ATEM MCP should remain
+the only tool that writes to Autotask; use Work IQ for user/day context and ATEM
+for contact lookup/create, ticket lookup, ticket creation, time entries, and
+reports.
 
 Azure Container Apps deployment and GitHub OIDC setup are documented in
 `docs/AZURE_DEPLOY.md`.

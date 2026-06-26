@@ -202,13 +202,14 @@ func TestTimeAddCreateTicketIncludesIssueTypes(t *testing.T) {
 		"--note", "Reviewed publish issue",
 		"--issue-type", "10",
 		"--sub-issue-type", "200",
+		"--contact", "300",
 		"--dry-run",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	createTicket, _ := dataMap(t, res)["createTicket"].(map[string]any)
-	if asInt64(createTicket["issueType"]) != 10 || asInt64(createTicket["subIssueType"]) != 200 {
+	if asInt64(createTicket["issueType"]) != 10 || asInt64(createTicket["subIssueType"]) != 200 || asInt64(createTicket["contactID"]) != 300 {
 		t.Fatalf("createTicket = %+v", createTicket)
 	}
 	data, ok := res.data.(TimeAddDryRun)
@@ -217,6 +218,9 @@ func TestTimeAddCreateTicketIncludesIssueTypes(t *testing.T) {
 	}
 	if warningsContain(data.Warnings, "classified") {
 		t.Fatalf("did not expect classification warning, got %v", data.Warnings)
+	}
+	if warningsContain(data.Warnings, "contactID") {
+		t.Fatalf("did not expect contact warning, got %v", data.Warnings)
 	}
 }
 
@@ -247,14 +251,26 @@ func TestTimeAddCreateTicketWarnsWithoutIssueTypes(t *testing.T) {
 func TestTimeAddRejectsIssueTypesWithExistingTicket(t *testing.T) {
 	app := newTestApp(t, &fakeClient{})
 	app.cfg.ResourceID = 55
-	if _, err := app.cmdTimeAdd([]string{
-		"--ticket", "100",
-		"--windows", "11-12",
-		"--note", "Reviewed publish issue",
-		"--issue-type", "10",
-		"--dry-run",
-	}); err == nil {
-		t.Fatal("expected issue-type with existing --ticket to fail")
+	cases := [][]string{
+		{
+			"--ticket", "100",
+			"--windows", "11-12",
+			"--note", "Reviewed publish issue",
+			"--issue-type", "10",
+			"--dry-run",
+		},
+		{
+			"--ticket", "100",
+			"--windows", "11-12",
+			"--note", "Reviewed publish issue",
+			"--contact", "300",
+			"--dry-run",
+		},
+	}
+	for _, args := range cases {
+		if _, err := app.cmdTimeAdd(args); err == nil {
+			t.Fatalf("expected ticket-field flags with existing --ticket to fail: %v", args)
+		}
 	}
 }
 

@@ -23,6 +23,7 @@ atem performs **no deletes** and touches only these entities:
 | Entity | Read | Add | Edit | Used by |
 |---|:--:|:--:|:--:|---|
 | Companies / Organizations | ✅ | | | `company search` |
+| Contacts | ✅ | ✅ *(optional)* | | `contact search`, `contact create` |
 | Tickets | ✅ | ✅ | ✅ | ticket search/show/create/close, timer, report |
 | TimeEntries | ✅ | ✅ | | report, logging time |
 | BillingCodes | ✅ | | | `config doctor` (work types) |
@@ -32,6 +33,8 @@ Everything else: **None**. Delete: **None** everywhere.
 
 - **Read-only user** (reports/lookups) = the Read column above.
 - **Write user** (full timer/ticket flow) = Read **+ Tickets: Add & Edit + TimeEntries: Add**.
+  Add **Contacts: Add** only if agents should be allowed to create missing
+  contacts after user confirmation.
 
 Observed live: a tightly-scoped read-only user could read Companies, Tickets,
 TimeEntries and BillingCodes, but was **denied Resources** — that's expected and
@@ -59,6 +62,13 @@ JSON (never the customer markdown).
 **Creating a ticket** — atem sets the ticket's **Primary Resource (Role)**
 (`assignedResourceID` + `assignedResourceRoleID`) from your `resourceId`/`roleId`,
 so the work is assigned to you for follow-up.
+
+When a customer person is known, atem can also set `Tickets.contactID` from
+`contact search`. This is the ticket's primary contact. `TicketAdditionalContacts`
+exists in Autotask for extra people, but atem intentionally starts with the
+primary contact only. Creating a new contact uses `Contacts` with `companyID`,
+`firstName`, `lastName`, `emailAddress`, and `isActive = 1`; the agent should do
+that only after confirming the person is not already present.
 
 **Logging time on a (service) ticket** requires:
 

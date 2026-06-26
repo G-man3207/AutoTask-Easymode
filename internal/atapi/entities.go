@@ -8,6 +8,7 @@ import (
 // Entity name constants used across the app.
 const (
 	EntityCompanies    = "Companies"
+	EntityContacts     = "Contacts"
 	EntityTickets      = "Tickets"
 	EntityTimeEntries  = "TimeEntries"
 	EntityResources    = "Resources"
@@ -57,6 +58,19 @@ func (c *Client) BillingCodes(ctx context.Context, limit int) ([]map[string]any,
 func (c *Client) SearchCompanies(ctx context.Context, q string, limit int) ([]map[string]any, error) {
 	return c.Query(ctx, EntityCompanies, []Filter{
 		{Op: "contains", Field: "companyName", Value: q},
+	}, limit)
+}
+
+// SearchContacts finds active contacts for one company by name or email.
+func (c *Client) SearchContacts(ctx context.Context, q string, companyID, limit int) ([]map[string]any, error) {
+	return c.Query(ctx, EntityContacts, []Filter{
+		{Op: "eq", Field: "companyID", Value: companyID},
+		{Op: "eq", Field: "isActive", Value: 1},
+		{Op: "or", Items: []Filter{
+			{Op: "contains", Field: "firstName", Value: q},
+			{Op: "contains", Field: "lastName", Value: q},
+			{Op: "contains", Field: "emailAddress", Value: q},
+		}},
 	}, limit)
 }
 

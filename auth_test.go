@@ -258,7 +258,7 @@ func TestM365ToolsListIsFilteredByProfileScopes(t *testing.T) {
 	if !names["ticket_search"] || !names["ticket_issue-types"] || !names["ticket_show"] {
 		t.Fatalf("ticket read tools missing: %v", names)
 	}
-	if names["ticket_create"] || names["time_add"] || names["report"] {
+	if names["ticket_create"] || names["contact_create"] || names["time_add"] || names["report"] {
 		t.Fatalf("profile scopes leaked write/report tools: %v", names)
 	}
 }

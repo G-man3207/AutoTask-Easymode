@@ -33,6 +33,8 @@ func localMCPSurface() mcpSurface {
 
 var m365MCPCommandNames = map[string]bool{
 	"company search":     true,
+	"contact search":     true,
+	"contact create":     true,
 	"ticket search":      true,
 	"ticket issue-types": true,
 	"ticket show":        true,
@@ -419,6 +421,9 @@ var mcpPromptList = []mcpPrompt{
 				"--windows so each window becomes its own entry — never one merged block.\n" +
 				"- One ticket per distinct task; search for an existing ticket and attach to it, " +
 				"else create one. company id 0 is valid (the owner org).\n" +
+				"- If the work involved a customer contact or the user mentions who they spoke with, " +
+				"use contact_search within the company and pass the contact id when creating the ticket. " +
+				"If the contact is missing, ask before creating it and collect first name, last name, and email.\n" +
 				"- When creating a ticket, treat issue-type/sub-issue-type as expected, not optional. " +
 				"Use ticket_issue-types to choose them. Omit them only for genuinely unclear or unusual cases; " +
 				"ask first if it is ambiguous.\n" +

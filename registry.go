@@ -57,6 +57,31 @@ var commands = []command{
 		run:        (*App).cmdCompanyAlias,
 	},
 	{
+		Name: "contact search", Summary: "Find active contacts for a company by name or email. Use before creating tickets when the user mentions who they spoke with.", ReadOnly: true,
+		Example: `contact search --company 0 "Anna"`,
+		Flags: []cmdFlag{
+			{Name: "query", Type: "string", Required: true, Positional: true, Desc: "contact name or email text"},
+			{Name: "company", Type: "string", Required: true, Desc: "customer alias or companyID"},
+			{Name: "limit", Type: "int", Default: "25", Desc: "max results"},
+		},
+		OutputType: ContactSearchResult{},
+		run:        (*App).cmdContactSearch,
+	},
+	{
+		Name: "contact create", Summary: "Create an active contact for a company after the user confirms the person does not already exist.", Destructive: true,
+		Example: `contact create --company 0 --first-name Anna --last-name Andersson --email anna@example.com --dry-run`,
+		Flags: []cmdFlag{
+			{Name: "company", Type: "string", Required: true, Desc: "customer alias or companyID"},
+			{Name: "first-name", Type: "string", Required: true, Desc: "contact first name"},
+			{Name: "last-name", Type: "string", Required: true, Desc: "contact last name"},
+			{Name: "email", Type: "string", Required: true, Desc: "contact email address"},
+			{Name: "dry-run", Type: "bool", Desc: "preview the payload without writing"},
+		},
+		OutputType: ContactCreateResult{},
+		DryRunType: ContactCreateDryRun{},
+		run:        (*App).cmdContactCreate,
+	},
+	{
 		Name: "resource search", Summary: "Find resources by name or email (e.g. your own resourceId).", ReadOnly: true,
 		Example: `resource search "Alex"`,
 		Flags: []cmdFlag{
@@ -84,7 +109,7 @@ var commands = []command{
 		run:        (*App).cmdTicketIssueTypes,
 	},
 	{
-		Name: "ticket create", Summary: "Create a ticket assigned to the configured resource. Most new tickets should include issue-type and sub-issue-type from ticket issue-types; omit only for genuinely unclear or unusual cases.", Destructive: true,
+		Name: "ticket create", Summary: "Create a ticket assigned to the configured resource. Most new tickets should include issue-type/sub-issue-type, and should include contact when the work involved a customer person.", Destructive: true,
 		Example: `ticket create --company 0 --title "Genomgång" --desc "Vad ärendet gäller" --dry-run`,
 		Flags: []cmdFlag{
 			{Name: "company", Type: "string", Required: true, Desc: "customer alias or companyID"},
@@ -92,6 +117,7 @@ var commands = []command{
 			{Name: "desc", Type: "string", Required: true, Desc: "ticket description (required — an empty description is customer-facing)"},
 			{Name: "issue-type", Type: "int", Desc: "ticket issue type id from ticket issue-types; expected for most new tickets"},
 			{Name: "sub-issue-type", Type: "int", Desc: "ticket sub-issue type id from ticket issue-types; expected for most new tickets and requires --issue-type"},
+			{Name: "contact", Type: "int", Desc: "primary contact id from contact search; use when the work involved a customer contact"},
 			{Name: "dry-run", Type: "bool", Desc: "preview the payload without writing"},
 		},
 		OutputType: TicketCreateResult{},
@@ -193,7 +219,7 @@ var commands = []command{
 		run:        (*App).cmdTimerStop,
 	},
 	{
-		Name: "time add", Summary: "Log one time entry per clock window (e.g. split work), creating or attaching a ticket. When creating a ticket via --company, most tickets should include issue-type and sub-issue-type.", Destructive: true,
+		Name: "time add", Summary: "Log one time entry per clock window (e.g. split work), creating or attaching a ticket. When creating a ticket via --company, include issue/sub-issue classification and contact when known.", Destructive: true,
 		Example: `time add --ticket 121159 --date 2026-06-16 --windows "11-12,13-15" --note "..."`,
 		Flags: []cmdFlag{
 			{Name: "ticket", Type: "int", Desc: "existing ticket id to log against"},
@@ -202,6 +228,7 @@ var commands = []command{
 			{Name: "desc", Type: "string", Desc: "ticket description (required when creating a ticket via --company; not needed with --ticket)"},
 			{Name: "issue-type", Type: "int", Desc: "ticket issue type id when creating a ticket; expected for most new tickets"},
 			{Name: "sub-issue-type", Type: "int", Desc: "ticket sub-issue type id when creating a ticket; expected for most new tickets and requires --issue-type"},
+			{Name: "contact", Type: "int", Desc: "primary contact id when creating a ticket; use when the work involved a customer contact"},
 			{Name: "date", Type: "string", Desc: "date worked YYYY-MM-DD (default: today)"},
 			{Name: "windows", Type: "string", Required: true, Desc: `time windows, e.g. "11-12,13-15" or "11-12=fixed X,13-15=did Y"`},
 			{Name: "note", Type: "string", Desc: "default note applied to each entry"},

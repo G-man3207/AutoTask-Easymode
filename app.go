@@ -18,6 +18,7 @@ const envTimeZone = "ATEM_TIMEZONE"
 // Defining it here (consumer-side) lets tests substitute a fake.
 type autotaskClient interface {
 	SearchCompanies(ctx context.Context, q string, limit int) ([]map[string]any, error)
+	SearchContacts(ctx context.Context, q string, companyID, limit int) ([]map[string]any, error)
 	SearchResources(ctx context.Context, q string, limit int) ([]map[string]any, error)
 	SearchTickets(ctx context.Context, q string, companyID, limit int) ([]map[string]any, error)
 	TicketsForCompany(ctx context.Context, companyID, limit int) ([]map[string]any, error)

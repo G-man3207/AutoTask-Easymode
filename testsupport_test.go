@@ -24,6 +24,7 @@ type createCall struct {
 // returns canned reads.
 type fakeClient struct {
 	companies    []map[string]any
+	contacts     []map[string]any
 	resources    []map[string]any
 	tickets      []map[string]any
 	entries      []map[string]any
@@ -43,6 +44,10 @@ type fakeClient struct {
 
 func (f *fakeClient) SearchCompanies(context.Context, string, int) ([]map[string]any, error) {
 	return f.companies, nil
+}
+
+func (f *fakeClient) SearchContacts(context.Context, string, int, int) ([]map[string]any, error) {
+	return f.contacts, nil
 }
 
 func (f *fakeClient) SearchResources(context.Context, string, int) ([]map[string]any, error) {

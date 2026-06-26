@@ -29,7 +29,9 @@ func (a *App) ticketFields(companyID int, title, desc string) (map[string]any, [
 type ticketFieldOptions struct {
 	issueType            int
 	subIssueType         int
+	contactID            int64
 	preferClassification bool
+	preferContact        bool
 }
 
 func (o ticketFieldOptions) validate() error {
@@ -55,6 +57,9 @@ func (a *App) ticketFieldsWithOptions(companyID int, title, desc string, opts ti
 	if opts.subIssueType != 0 {
 		fields["subIssueType"] = opts.subIssueType
 	}
+	if opts.contactID != 0 {
+		fields["contactID"] = opts.contactID
+	}
 	var warnings []string
 	if a.cfg.Defaults.QueueID != 0 {
 		fields["queueID"] = a.cfg.Defaults.QueueID
@@ -62,6 +67,7 @@ func (a *App) ticketFieldsWithOptions(companyID int, title, desc string, opts ti
 		warnings = append(warnings, "defaults.queueId is not set; Autotask usually requires queueID to create a ticket")
 	}
 	warnings = append(warnings, opts.classificationWarnings()...)
+	warnings = append(warnings, opts.contactWarnings()...)
 	if strings.TrimSpace(desc) != "" {
 		fields["description"] = desc
 	}
@@ -87,6 +93,13 @@ func (o ticketFieldOptions) classificationWarnings() []string {
 	default:
 		return nil
 	}
+}
+
+func (o ticketFieldOptions) contactWarnings() []string {
+	if !o.preferContact || o.contactID != 0 {
+		return nil
+	}
+	return []string{"contactID is unset; if the work involved a customer contact or the user mentioned who they spoke with, run contact search/create and pass --contact. Omit only for internal/system work or when no person is known."}
 }
 
 func (a *App) cmdTicketIssueTypes(args []string) (*cmdResult, error) {
@@ -191,11 +204,12 @@ func (a *App) cmdTicketCreate(args []string) (*cmdResult, error) {
 	desc := fs.String("desc", "", "ticket description")
 	issueType := fs.Int("issue-type", 0, "ticket issue type id from `ticket issue-types`")
 	subIssueType := fs.Int("sub-issue-type", 0, "ticket sub-issue type id from `ticket issue-types`")
+	contactID := fs.Int64("contact", 0, "primary contact id from `contact search`")
 	dryRun := fs.Bool("dry-run", false, "preview without writing")
 	if err := fs.Parse(args); err != nil {
 		return nil, usageErr("ticket create", err)
 	}
-	opts := ticketFieldOptions{issueType: *issueType, subIssueType: *subIssueType, preferClassification: true}
+	opts := ticketFieldOptions{issueType: *issueType, subIssueType: *subIssueType, contactID: *contactID, preferClassification: true, preferContact: true}
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}

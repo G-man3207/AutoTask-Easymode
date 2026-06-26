@@ -48,6 +48,65 @@ func TestCompanySearch(t *testing.T) {
 	}
 }
 
+func TestContactSearch(t *testing.T) {
+	fc := &fakeClient{contacts: []map[string]any{
+		{
+			"id": float64(9), "companyID": float64(7),
+			"firstName": "Anna", "lastName": "Andersson",
+			"emailAddress": "anna@example.com", "isActive": 1,
+			"phone": "08-123", "mobilePhone": "070-123",
+		},
+	}}
+	app := newTestApp(t, fc)
+	res, err := app.cmdContactSearch([]string{"--company", "7", "Anna"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := dataMap(t, res)
+	if asInt64(data["count"]) != 1 {
+		t.Fatalf("count = %v", data["count"])
+	}
+	contacts, _ := data["contacts"].([]any)
+	got, _ := contacts[0].(map[string]any)
+	if got["email"] != "anna@example.com" {
+		t.Fatalf("contact = %+v", got)
+	}
+	if !strings.Contains(asString(data["guidance"]), "contact_create") {
+		t.Fatalf("guidance = %v", data["guidance"])
+	}
+}
+
+func TestContactCreateDryRun(t *testing.T) {
+	app := newTestApp(t, nil)
+	res, err := app.cmdContactCreate([]string{
+		"--company", "7",
+		"--first-name", "Anna",
+		"--last-name", "Andersson",
+		"--email", "anna@example.com",
+		"--dry-run",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.dryRun {
+		t.Fatal("expected dryRun")
+	}
+	fields, _ := dataMap(t, res)["fields"].(map[string]any)
+	if asInt64(fields["companyID"]) != 7 || fields["firstName"] != "Anna" || fields["emailAddress"] != "anna@example.com" || asInt64(fields["isActive"]) != 1 {
+		t.Fatalf("fields = %+v", fields)
+	}
+}
+
+func TestContactCreateValidation(t *testing.T) {
+	app := newTestApp(t, nil)
+	if _, err := app.cmdContactCreate([]string{"--company", "7", "--first-name", "Anna", "--last-name", "Andersson", "--email", "bad", "--dry-run"}); err == nil {
+		t.Fatal("expected bad email to fail")
+	}
+	if _, err := app.cmdContactSearch([]string{"Anna"}); err == nil {
+		t.Fatal("expected contact search without company to fail")
+	}
+}
+
 func TestTicketCreateDryRun(t *testing.T) {
 	app := newTestApp(t, nil) // dry-run needs no client
 	res, err := app.cmdTicketCreate([]string{"--company", "123", "--title", "x", "--desc", "what it's about", "--dry-run"})
@@ -112,13 +171,14 @@ func TestTicketCreateDryRunIncludesIssueTypes(t *testing.T) {
 		"--desc", "what it's about",
 		"--issue-type", "10",
 		"--sub-issue-type", "200",
+		"--contact", "300",
 		"--dry-run",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	fields, _ := dataMap(t, res)["fields"].(map[string]any)
-	if asInt64(fields["issueType"]) != 10 || asInt64(fields["subIssueType"]) != 200 {
+	if asInt64(fields["issueType"]) != 10 || asInt64(fields["subIssueType"]) != 200 || asInt64(fields["contactID"]) != 300 {
 		t.Fatalf("fields = %+v", fields)
 	}
 	data, ok := res.data.(TicketCreateDryRun)
@@ -127,6 +187,9 @@ func TestTicketCreateDryRunIncludesIssueTypes(t *testing.T) {
 	}
 	if warningsContain(data.Warnings, "classified") {
 		t.Fatalf("did not expect classification warning, got %v", data.Warnings)
+	}
+	if warningsContain(data.Warnings, "contactID") {
+		t.Fatalf("did not expect contact warning, got %v", data.Warnings)
 	}
 }
 

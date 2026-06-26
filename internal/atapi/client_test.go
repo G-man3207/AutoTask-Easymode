@@ -162,6 +162,29 @@ func TestSearchCompaniesBuildsContainsFilter(t *testing.T) {
 	}
 }
 
+func TestSearchContactsBuildsCompanyActiveNameEmailFilter(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		s := string(body)
+		if !strings.Contains(r.URL.Path, "/Contacts/query") {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		for _, want := range []string{`"companyID"`, `"isActive"`, `"firstName"`, `"lastName"`, `"emailAddress"`, `"contains"`} {
+			if !strings.Contains(s, want) {
+				t.Errorf("contact filter missing %s: body=%s", want, s)
+			}
+		}
+		_, _ = io.WriteString(w, `{"items":[{"id":9,"firstName":"Anna"}],"pageDetails":{}}`)
+	})
+	items, err := c.SearchContacts(context.Background(), "Anna", 7, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("items = %d", len(items))
+	}
+}
+
 func TestTimeEntriesForTicketsBuildsFilters(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)

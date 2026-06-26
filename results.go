@@ -48,6 +48,35 @@ type CompanyAliasResult struct {
 	CompanyID int    `json:"companyId"`
 }
 
+type ContactHit struct {
+	ID          int64  `json:"id"`
+	CompanyID   int64  `json:"companyId"`
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	Email       string `json:"email"`
+	Phone       string `json:"phone"`
+	MobilePhone string `json:"mobilePhone"`
+	IsActive    any    `json:"isActive"`
+}
+
+type ContactSearchResult struct {
+	Query    string       `json:"query"`
+	Company  string       `json:"company"`
+	Count    int          `json:"count"`
+	Contacts []ContactHit `json:"contacts"`
+	Guidance string       `json:"guidance"`
+}
+
+type ContactCreateResult struct {
+	ContactID int64    `json:"contactId"`
+	Warnings  []string `json:"warnings"`
+}
+
+type ContactCreateDryRun struct {
+	Fields   map[string]any `json:"fields"`
+	Warnings []string       `json:"warnings"`
+}
+
 type ResourceHit struct {
 	ID        int64  `json:"id"`
 	FirstName string `json:"firstName"`

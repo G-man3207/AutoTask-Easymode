@@ -96,6 +96,10 @@ func mcpScopeForCommand(name string) string {
 	switch name {
 	case "company search":
 		return "company:read"
+	case "contact search":
+		return "company:read"
+	case "contact create":
+		return "ticket:create"
 	case "ticket search", "ticket issue-types", "ticket show":
 		return "ticket:read"
 	case "ticket create":

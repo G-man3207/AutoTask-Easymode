@@ -29,6 +29,7 @@ func (a *App) cmdTimeAdd(args []string) (*cmdResult, error) {
 	desc := fs.String("desc", "", "ticket description (when creating)")
 	issueType := fs.Int("issue-type", 0, "ticket issue type id when creating")
 	subIssueType := fs.Int("sub-issue-type", 0, "ticket sub-issue type id when creating")
+	contactID := fs.Int64("contact", 0, "primary contact id when creating a ticket")
 	date := fs.String("date", "", "date worked YYYY-MM-DD (default: today)")
 	windowsSpec := fs.String("windows", "", `time windows, e.g. "11-12,13-15" or "11-12=fixed X,13-15=did Y"`)
 	note := fs.String("note", "", "default note applied to each entry")
@@ -37,7 +38,14 @@ func (a *App) cmdTimeAdd(args []string) (*cmdResult, error) {
 	if err := fs.Parse(args); err != nil {
 		return nil, usageErr("time add", err)
 	}
-	ticketOpts := ticketFieldOptions{issueType: *issueType, subIssueType: *subIssueType, preferClassification: strings.TrimSpace(*company) != ""}
+	creatingTicket := strings.TrimSpace(*company) != ""
+	ticketOpts := ticketFieldOptions{
+		issueType:            *issueType,
+		subIssueType:         *subIssueType,
+		contactID:            *contactID,
+		preferClassification: creatingTicket,
+		preferContact:        creatingTicket,
+	}
 	if err := ticketOpts.validate(); err != nil {
 		return nil, err
 	}
@@ -97,10 +105,10 @@ func (a *App) cmdTimeAdd(args []string) (*cmdResult, error) {
 func (a *App) timeAddTicket(ticket int64, company, title, desc string, day time.Time, opts ticketFieldOptions) (map[string]any, []string, error) {
 	switch {
 	case ticket != 0:
-		if opts.issueType != 0 || opts.subIssueType != 0 {
+		if opts.issueType != 0 || opts.subIssueType != 0 || opts.contactID != 0 {
 			return nil, nil, hinted(
-				"omit issue flags with --ticket, or create a new ticket via --company so atem can set them",
-				"issue type can only be set when time add creates a ticket",
+				"omit ticket field flags with --ticket, or create a new ticket via --company so atem can set them",
+				"issue type/contact can only be set when time add creates a ticket",
 			)
 		}
 		return nil, nil, nil
