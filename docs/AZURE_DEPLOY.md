@@ -124,3 +124,26 @@ az containerapp update -g "<resource-group>" -n "<container-app-name>" --set-env
 The Container App can start with `ATEM_AUTH_MODE=none` for smoke testing before
 the Microsoft 365 Copilot app registration/audience exists. Switch it to `entra`
 before connecting a real Copilot test user.
+
+## Copilot OAuth connection lifetime
+
+Copilot Studio's MCP OAuth configuration should request a refresh token:
+
+```text
+openid profile offline_access api://<api-app-client-id>/access_as_user
+```
+
+If Copilot Studio still marks the MCP connection stale after the access token
+expires, use an app-scoped Microsoft Entra token lifetime policy as a pragmatic
+workaround. This does not change refresh-token lifetimes and does not apply to
+the whole tenant; it extends access/ID token lifetime for the ATEM MCP API app.
+
+```pwsh
+./scripts/azure/set-token-lifetime.ps1 `
+  -AppId "<api-app-client-id>" `
+  -Hours 8
+```
+
+The script uses Microsoft Graph through `az rest`, creates or reuses a policy
+named `atem-mcp-copilot-api-access-token-<hours>h`, and assigns it to the app
+registration.

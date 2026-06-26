@@ -281,11 +281,22 @@ manual auth:
 | Authorization URL | `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize` |
 | Token URL template | `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` |
 | Refresh URL | `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` |
-| Scopes | `api://<api-app-client-id>/access_as_user` |
+| Scopes | `openid profile offline_access api://<api-app-client-id>/access_as_user` |
 
 After Copilot Studio generates its redirect URL, add that exact value as a
 **Web** redirect URI on the Entra app registration. Keep live tenant ids,
 subscription ids, FQDNs, client secrets, and profile JSON out of the repo.
+
+If Copilot Studio marks the MCP connection stale after the Entra access token
+expires, confirm that `offline_access` is present in the scopes. As a pragmatic
+workaround for current Copilot Studio MCP OAuth behavior, assign an app-scoped
+Entra access-token lifetime policy to the MCP API app, for example 8 hours:
+
+```pwsh
+./scripts/azure/set-token-lifetime.ps1 `
+  -AppId "<api-app-client-id>" `
+  -Hours 8
+```
 
 Recommended Copilot Studio setup: add Microsoft's **Work IQ User MCP** connector
 alongside ATEM MCP. Work IQ can read the signed-in user's Microsoft 365 context

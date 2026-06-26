@@ -24,6 +24,10 @@ between today's local CLI/MCP server and a tenant-deployable Copilot plugin.
   that exposes active Autotask issue/sub-issue picklists. Agents can use it to
   categorize new tickets, but should ask the user before creating a ticket when
   the available Microsoft 365/work context does not clearly map to one option.
+- Copilot Studio MCP connections can become stale when the Entra access token
+  expires. Request `offline_access` in the OAuth scopes and, if Copilot still
+  does not refresh silently, assign an app-scoped Entra access-token lifetime
+  policy to the MCP API app as documented in `docs/AZURE_DEPLOY.md`.
 - The local stdio MCP surface is intentionally broader than the hosted M365
   surface. Local/admin tools such as `config set`, `company alias`, local timer
   state commands, and `config doctor` remain available locally but are hidden
