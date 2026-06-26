@@ -116,7 +116,8 @@ func (s mcpSurface) filteredForProfile(profile *TechnicianProfile) mcpSurface {
 	}
 	filtered := s
 	filtered.commands = make([]command, 0, len(s.commands))
-	for _, c := range s.commands {
+	for i := range s.commands {
+		c := s.commands[i]
 		scope := mcpScopeForCommand(c.Name)
 		if scope == "" || profile.hasScope(scope) {
 			filtered.commands = append(filtered.commands, c)

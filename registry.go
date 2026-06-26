@@ -2,6 +2,13 @@ package main
 
 import "strings"
 
+type commandSurface string
+
+const (
+	surfaceLocal   commandSurface = "local"
+	surfaceCopilot commandSurface = "copilot"
+)
+
 // cmdFlag describes one input of a command: a --flag or a positional argument.
 // The same metadata drives the CLI help, `atem describe`, and the MCP tool
 // schemas, so the agent-facing surface can never drift from the commands.
@@ -18,13 +25,13 @@ type cmdFlag struct {
 // command is one CLI command (and one MCP tool). Name is the space-separated
 // invocation, e.g. "ticket create" or "report".
 type command struct {
-	Name        string    `json:"name"`
-	Summary     string    `json:"summary"`
-	Flags       []cmdFlag `json:"flags"`
-	Example     string    `json:"example,omitempty"`
-	ReadOnly    bool      `json:"readOnly,omitempty"`    // no side effects
-	Destructive bool      `json:"destructive,omitempty"` // writes to Autotask (has --dry-run)
-	MCPHidden   bool      `json:"-"`                     // not exposed as an MCP tool (interactive)
+	Name        string           `json:"name"`
+	Summary     string           `json:"summary"`
+	Flags       []cmdFlag        `json:"flags"`
+	Example     string           `json:"example,omitempty"`
+	ReadOnly    bool             `json:"readOnly,omitempty"`    // no side effects
+	Destructive bool             `json:"destructive,omitempty"` // writes to Autotask (has --dry-run)
+	Surfaces    []commandSurface `json:"surfaces,omitempty"`
 	// OutputType is a zero value of the result struct, used to generate the MCP
 	// outputSchema by reflection. nil means a dynamic/open shape (loose schema).
 	// DryRunType, when set, is the distinct --dry-run result shape (-> oneOf).
@@ -44,6 +51,7 @@ var commands = []command{
 			{Name: "limit", Type: "int", Default: "25", Desc: "max results"},
 		},
 		OutputType: CompanySearchResult{},
+		Surfaces:   []commandSurface{surfaceLocal, surfaceCopilot},
 		run:        (*App).cmdCompanySearch,
 	},
 	{
@@ -54,6 +62,7 @@ var commands = []command{
 			{Name: "companyId", Type: "int", Required: true, Positional: true, Desc: "Autotask company id"},
 		},
 		OutputType: CompanyAliasResult{},
+		Surfaces:   []commandSurface{surfaceLocal},
 		run:        (*App).cmdCompanyAlias,
 	},
 	{
@@ -65,6 +74,7 @@ var commands = []command{
 			{Name: "limit", Type: "int", Default: "25", Desc: "max results"},
 		},
 		OutputType: ContactSearchResult{},
+		Surfaces:   []commandSurface{surfaceLocal, surfaceCopilot},
 		run:        (*App).cmdContactSearch,
 	},
 	{
@@ -79,6 +89,7 @@ var commands = []command{
 		},
 		OutputType: ContactCreateResult{},
 		DryRunType: ContactCreateDryRun{},
+		Surfaces:   []commandSurface{surfaceLocal, surfaceCopilot},
 		run:        (*App).cmdContactCreate,
 	},
 	{
@@ -89,6 +100,7 @@ var commands = []command{
 			{Name: "limit", Type: "int", Default: "25", Desc: "max results"},
 		},
 		OutputType: ResourceSearchResult{},
+		Surfaces:   []commandSurface{surfaceLocal},
 		run:        (*App).cmdResourceSearch,
 	},
 	{
@@ -100,12 +112,14 @@ var commands = []command{
 			{Name: "limit", Type: "int", Default: "25", Desc: "max results"},
 		},
 		OutputType: TicketSearchResult{},
+		Surfaces:   []commandSurface{surfaceLocal, surfaceCopilot},
 		run:        (*App).cmdTicketSearch,
 	},
 	{
 		Name: "ticket issue-types", Summary: "List active ticket issue types and sub-issue types; use before creating most tickets.", ReadOnly: true,
 		Example:    `ticket issue-types`,
 		OutputType: TicketIssueTypesResult{},
+		Surfaces:   []commandSurface{surfaceLocal, surfaceCopilot},
 		run:        (*App).cmdTicketIssueTypes,
 	},
 	{
@@ -122,6 +136,7 @@ var commands = []command{
 		},
 		OutputType: TicketCreateResult{},
 		DryRunType: TicketCreateDryRun{},
+		Surfaces:   []commandSurface{surfaceLocal, surfaceCopilot},
 		run:        (*App).cmdTicketCreate,
 	},
 	{
@@ -130,7 +145,8 @@ var commands = []command{
 		Flags: []cmdFlag{
 			{Name: "id", Type: "int", Required: true, Positional: true, Desc: "ticket id"},
 		},
-		run: (*App).cmdTicketShow,
+		Surfaces: []commandSurface{surfaceLocal, surfaceCopilot},
+		run:      (*App).cmdTicketShow,
 	},
 	{
 		Name: "ticket close", Summary: "Set a ticket to the configured complete status.", Destructive: true,
@@ -141,6 +157,7 @@ var commands = []command{
 		},
 		OutputType: TicketCloseResult{},
 		DryRunType: TicketCloseDryRun{},
+		Surfaces:   []commandSurface{surfaceLocal},
 		run:        (*App).cmdTicketClose,
 	},
 	{
@@ -158,12 +175,14 @@ var commands = []command{
 		},
 		OutputType: TimerStartResult{},
 		DryRunType: TimerStartDryRun{},
+		Surfaces:   []commandSurface{surfaceLocal},
 		run:        (*App).cmdTimerStart,
 	},
 	{
 		Name: "timer status", Summary: "List local work sessions and their hours.", ReadOnly: true,
 		Example:    `timer status`,
 		OutputType: TimerStatusResult{},
+		Surfaces:   []commandSurface{surfaceLocal},
 		run:        (*App).cmdTimerStatus,
 	},
 	{
@@ -174,6 +193,7 @@ var commands = []command{
 			{Name: "text", Type: "string", Required: true, Positional: true, Desc: "note text"},
 		},
 		OutputType: SessionView{},
+		Surfaces:   []commandSurface{surfaceLocal},
 		run:        (*App).cmdTimerNote,
 	},
 	{
@@ -183,6 +203,7 @@ var commands = []command{
 			{Name: "session", Type: "string", Positional: true, Desc: "session id (default: the single active one)"},
 		},
 		OutputType: SessionView{},
+		Surfaces:   []commandSurface{surfaceLocal},
 		run:        (*App).cmdTimerPause,
 	},
 	{
@@ -192,6 +213,7 @@ var commands = []command{
 			{Name: "session", Type: "string", Positional: true, Desc: "session id (default: the single active one)"},
 		},
 		OutputType: SessionView{},
+		Surfaces:   []commandSurface{surfaceLocal},
 		run:        (*App).cmdTimerResume,
 	},
 	{
@@ -201,6 +223,7 @@ var commands = []command{
 			{Name: "session", Type: "string", Required: true, Positional: true, Desc: "session id"},
 		},
 		OutputType: SessionView{},
+		Surfaces:   []commandSurface{surfaceLocal},
 		run:        (*App).cmdTimerSwitch,
 	},
 	{
@@ -216,6 +239,7 @@ var commands = []command{
 		},
 		OutputType: TimerStopResult{},
 		DryRunType: TimerStopDryRun{},
+		Surfaces:   []commandSurface{surfaceLocal},
 		run:        (*App).cmdTimerStop,
 	},
 	{
@@ -237,6 +261,7 @@ var commands = []command{
 		},
 		OutputType: TimeAddResult{},
 		DryRunType: TimeAddDryRun{},
+		Surfaces:   []commandSurface{surfaceLocal, surfaceCopilot},
 		run:        (*App).cmdTimeAdd,
 	},
 	{
@@ -253,12 +278,14 @@ var commands = []command{
 			{Name: "out", Type: "string", Desc: "also write the report to this file"},
 		},
 		OutputType: ReportResult{},
+		Surfaces:   []commandSurface{surfaceLocal, surfaceCopilot},
 		run:        (*App).cmdReport,
 	},
 	{
 		Name: "config show", Summary: "Show the current configuration (secrets redacted).", ReadOnly: true,
 		Example:    `config show`,
 		OutputType: ConfigView{},
+		Surfaces:   []commandSurface{surfaceLocal},
 		run:        (*App).cmdConfigShow,
 	},
 	{
@@ -269,22 +296,14 @@ var commands = []command{
 			{Name: "value", Type: "string", Required: true, Positional: true, Desc: "value to set"},
 		},
 		OutputType: ConfigView{},
+		Surfaces:   []commandSurface{surfaceLocal},
 		run:        (*App).cmdConfigSet,
 	},
 	{
 		Name: "config doctor", Summary: "Verify credentials and zone, and list org picklist IDs.", ReadOnly: true,
-		Example: `config doctor`,
-		run:     (*App).cmdConfigDoctor,
-	},
-	{
-		Name: "ui", Summary: "Serve the local config panel in a browser (interactive; blocks).", MCPHidden: true,
-		Example: `ui --port 7378`,
-		Flags: []cmdFlag{
-			{Name: "port", Type: "int", Default: "7378", Desc: "localhost port to serve on"},
-			{Name: "no-open", Type: "bool", Desc: "do not open the browser automatically"},
-		},
-		OutputType: UIResult{},
-		run:        (*App).cmdUI,
+		Example:  `config doctor`,
+		Surfaces: []commandSurface{surfaceLocal},
+		run:      (*App).cmdConfigDoctor,
 	},
 }
 
@@ -298,6 +317,26 @@ func lookupCommand(name string) *command {
 	return nil
 }
 
+func commandsForSurface(surface commandSurface) []command {
+	out := make([]command, 0, len(commands))
+	for i := range commands {
+		c := commands[i]
+		if c.hasSurface(surface) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func (c command) hasSurface(surface commandSurface) bool {
+	for _, s := range c.Surfaces {
+		if s == surface {
+			return true
+		}
+	}
+	return false
+}
+
 // describeData serializes the registry for `atem describe`. It needs no config,
 // so the surface is discoverable even before credentials are set.
 func describeData() map[string]any {
@@ -307,7 +346,8 @@ func describeData() map[string]any {
 // subcommandsOf returns the second word of every command in the given group.
 func subcommandsOf(group string) []string {
 	var subs []string
-	for _, c := range commands {
+	for i := range commands {
+		c := commands[i]
 		if strings.HasPrefix(c.Name, group+" ") {
 			subs = append(subs, strings.TrimPrefix(c.Name, group+" "))
 		}
@@ -342,12 +382,17 @@ func commandUsageLine(c command) string {
 // registry so it cannot drift; only the surrounding prose is curated here.
 func usageText() string {
 	var b strings.Builder
-	b.WriteString("atem " + version + " — AutoTask EasyMode\n\n")
-	b.WriteString("A terminal-friendly, AI-driveable wrapper around the Autotask PSA REST API.\n")
-	b.WriteString("Every command prints a single JSON object. Writes support --dry-run.\n\n")
-	b.WriteString("USAGE\n  atem <group> <command> [flags]\n\nCOMMANDS\n")
+	b.WriteString("atem " + version + " - AutoTask EasyMode\n\n")
+	b.WriteString("Autotask MCP gateway with a local JSON runner for setup, debugging, and agent fallback.\n")
+	b.WriteString("The hosted Copilot runtime is `atem serve`; local handlers still emit one JSON object, and writes support --dry-run.\n\n")
+	b.WriteString("USAGE\n")
+	b.WriteString("  atem serve [--addr :8080] [--toolset m365] [--auth entra]\n")
+	b.WriteString("  atem mcp\n")
+	b.WriteString("  atem <group> <command> [flags]\n\n")
+	b.WriteString("LOCAL RUNNER HANDLERS\n")
 	prevGroup := ""
-	for _, c := range commands {
+	for i := range commands {
+		c := commands[i]
 		group := strings.Fields(c.Name)[0]
 		if prevGroup != "" && group != prevGroup {
 			b.WriteString("\n")
@@ -356,9 +401,9 @@ func usageText() string {
 		b.WriteString("  " + commandUsageLine(c) + "\n")
 		b.WriteString("      " + c.Summary + "\n")
 	}
-	b.WriteString("\nAGENT / INTROSPECTION\n")
-	b.WriteString("  atem describe        JSON of every command/flag (no config needed)\n")
-	b.WriteString("  atem mcp             run as an MCP server over stdio (tools = commands)\n")
+	b.WriteString("\nGATEWAY / INTROSPECTION\n")
+	b.WriteString("  atem describe        JSON of every handler, flag, and surface (no config needed)\n")
+	b.WriteString("  atem mcp             run local MCP over stdio for development agents\n")
 	b.WriteString("  atem serve           run remote MCP over HTTP (default toolset = m365)\n")
 	b.WriteString("\nOTHER\n  atem help\n  atem version\n")
 	b.WriteString("\nNOTES\n")

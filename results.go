@@ -241,7 +241,7 @@ type ReportResult struct {
 	WrittenTo   string         `json:"writtenTo,omitempty"` // set when --out wrote the report to a file
 }
 
-// --- config / ui ---
+// --- config ---
 
 type ConfigView struct {
 	Path               string          `json:"path"`
@@ -253,8 +253,4 @@ type ConfigView struct {
 	Defaults           config.Defaults `json:"defaults"`
 	Aliases            map[string]int  `json:"aliases"`
 	MissingCredentials []string        `json:"missingCredentials"`
-}
-
-type UIResult struct {
-	Served string `json:"served"`
 }

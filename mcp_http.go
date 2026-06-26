@@ -19,7 +19,7 @@ const defaultHTTPAddr = ":8080"
 func (a *App) serveHTTPCommand(args []string) int {
 	fs := newFlagSet("serve")
 	addr := fs.String("addr", envDefault("ATEM_HTTP_ADDR", defaultHTTPAddr), "HTTP listen address")
-	toolset := fs.String("toolset", envDefault("ATEM_MCP_TOOLSET", "m365"), "MCP toolset: m365 or all")
+	toolset := fs.String("toolset", envDefault("ATEM_MCP_TOOLSET", "m365"), "MCP toolset: m365/copilot or all")
 	authMode := fs.String("auth", envDefault("ATEM_AUTH_MODE", "none"), "auth mode: none or entra")
 	allowUnauthenticated := fs.Bool("allow-unauthenticated", envBool("ATEM_ALLOW_UNAUTHENTICATED"), "allow auth none on a non-loopback listener")
 	tenantID := fs.String("tenant-id", envDefault("ATEM_ENTRA_TENANT_ID", ""), "expected Entra tenant id")

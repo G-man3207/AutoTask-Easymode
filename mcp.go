@@ -20,8 +20,9 @@ var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 const mcpProtocolVersion = "2024-11-05"
 
 // mcpSurface is the command/resource/prompt surface exposed to one class of MCP
-// client. Local stdio agents get the full CLI-shaped surface; remote Microsoft
-// 365 Copilot gets a deliberately smaller set that excludes local/admin tools.
+// client. Local stdio agents get the broad local runner surface; remote
+// Microsoft 365 Copilot gets a deliberately smaller set that excludes
+// local/admin/debug tools.
 type mcpSurface struct {
 	commands              []command
 	includeConfigResource bool
@@ -29,29 +30,11 @@ type mcpSurface struct {
 }
 
 func localMCPSurface() mcpSurface {
-	return mcpSurface{commands: commands, includeConfigResource: true, prompts: mcpPromptList}
-}
-
-var m365MCPCommandNames = map[string]bool{
-	"company search":     true,
-	"contact search":     true,
-	"contact create":     true,
-	"ticket search":      true,
-	"ticket issue-types": true,
-	"ticket show":        true,
-	"ticket create":      true,
-	"time add":           true,
-	"report":             true,
+	return mcpSurface{commands: commandsForSurface(surfaceLocal), includeConfigResource: true, prompts: mcpPromptList}
 }
 
 func m365MCPSurface() mcpSurface {
-	var safe []command
-	for _, c := range commands {
-		if m365MCPCommandNames[c.Name] {
-			safe = append(safe, c)
-		}
-	}
-	return mcpSurface{commands: safe, prompts: mcpPromptList}
+	return mcpSurface{commands: commandsForSurface(surfaceCopilot), prompts: mcpPromptList}
 }
 
 // JSON-RPC 2.0 envelopes (the subset MCP over stdio uses).
@@ -180,10 +163,8 @@ func mcpTools() []map[string]any {
 
 func mcpToolsFor(cmds []command) []map[string]any {
 	tools := make([]map[string]any, 0, len(cmds))
-	for _, c := range cmds {
-		if c.MCPHidden {
-			continue
-		}
+	for i := range cmds {
+		c := cmds[i]
 		desc := c.Summary
 		if c.Example != "" {
 			desc += "\nExample: atem " + c.Example
@@ -271,7 +252,7 @@ func (a *App) mcpToolsCallWithSurface(params json.RawMessage, surface mcpSurface
 
 func commandByToolNameFor(tool string, cmds []command) *command {
 	for i := range cmds {
-		if !cmds[i].MCPHidden && mcpToolName(cmds[i].Name) == tool {
+		if mcpToolName(cmds[i].Name) == tool {
 			return &cmds[i]
 		}
 	}

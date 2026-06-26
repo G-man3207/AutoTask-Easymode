@@ -55,14 +55,19 @@ func TestDescribeDataCoversRegistry(t *testing.T) {
 	}
 }
 
+func TestCommandSurfacesCoverRegistry(t *testing.T) {
+	for _, c := range commands {
+		if !c.hasSurface(surfaceLocal) && !c.hasSurface(surfaceCopilot) {
+			t.Errorf("%s has no declared surface", c.Name)
+		}
+	}
+}
+
 // TestRegistryFlagsAreDefined guards against drift: every flag declared in the
 // registry must actually be defined by its handler (else describe/MCP would
 // advertise a flag the CLI rejects).
 func TestRegistryFlagsAreDefined(t *testing.T) {
 	for _, c := range commands {
-		if c.MCPHidden {
-			continue // ui binds a socket; don't run it
-		}
 		app := newTestApp(t, &fakeClient{})
 		argv := append(strings.Fields(c.Name), dummyArgv(c)...)
 		_, err := app.dispatch(argv)
@@ -151,9 +156,6 @@ func TestMCPToolsList(t *testing.T) {
 	if !names["time_add"] || !names["ticket_create"] {
 		t.Errorf("expected time_add and ticket_create tools; got %v", names)
 	}
-	if names["ui"] {
-		t.Error("interactive ui must not be exposed as a tool")
-	}
 }
 
 func TestM365MCPSurfaceFiltersTools(t *testing.T) {
@@ -170,7 +172,7 @@ func TestM365MCPSurfaceFiltersTools(t *testing.T) {
 		}
 	}
 	blocked := []string{
-		"company_alias", "resource_search", "ticket_close", "timer_start", "timer_stop", "config_show", "config_set", "config_doctor", "ui",
+		"company_alias", "resource_search", "ticket_close", "timer_start", "timer_stop", "config_show", "config_set", "config_doctor",
 	}
 	for _, name := range blocked {
 		if names[name] {

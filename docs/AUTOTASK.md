@@ -12,9 +12,9 @@ atem authenticates with three values from an **API User (API-only)** resource:
 - an **API Integration Code** (the "API Tracking Identifier") — a separate value,
   not the username
 
-Set them in `atem ui` (local panel) or via environment variables
-(`ATEM_USERNAME`, `ATEM_SECRET`, `ATEM_INTEGRATION_CODE`). The API zone URL is
-auto-detected from the username and cached in the config file.
+Set them via environment variables (`ATEM_USERNAME`, `ATEM_SECRET`,
+`ATEM_INTEGRATION_CODE`) or config commands. The API zone URL is auto-detected
+from the username and cached in the config file.
 
 ## Least-privilege security level
 
@@ -42,7 +42,7 @@ fine (atem reads your `resourceId`/`roleId` off existing time entries instead).
 
 ## Required config for the write flow
 
-Set via `atem ui` or `atem config set`:
+Set via environment variables or `atem config set`:
 
 | Key | Meaning |
 |---|---|

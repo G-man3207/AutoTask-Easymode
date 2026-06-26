@@ -1,7 +1,6 @@
-// Command atem (AutoTask EasyMode) is a terminal-friendly, AI-driveable wrapper
-// around the Autotask PSA REST API. It keeps loose local work timers and turns
-// natural technician workflows ("starting on customer X" / "done, ~2h") into
-// tickets, time entries, and AI-friendly reports.
+// Command atem (AutoTask EasyMode) is a local runner and MCP gateway for the
+// Autotask PSA REST API. It turns technician workflows into tickets, time
+// entries, and AI-friendly reports.
 //
 // Every command prints a single JSON object so the tool is easy to drive from
 // an AI agent; writes to Autotask support --dry-run for a safe preview first.

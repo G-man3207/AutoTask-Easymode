@@ -19,10 +19,16 @@ func captureStdout(t *testing.T, fn func()) string {
 	}
 	os.Stdout = w
 	defer func() { os.Stdout = old }()
+	out := make(chan string, 1)
+	go func() {
+		data, _ := io.ReadAll(r)
+		out <- string(data)
+	}()
 	fn()
-	_ = w.Close()
-	data, _ := io.ReadAll(r)
-	return string(data)
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return <-out
 }
 
 func TestRunVersion(t *testing.T) {

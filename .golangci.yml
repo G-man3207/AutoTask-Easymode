@@ -182,11 +182,6 @@ linters:
       - linters: [gosec]
         path: internal/atomicfile/
         text: "G304"
-      # The config UI opens the browser via a fixed OS launcher with our own
-      # 127.0.0.1 URL (not user input).
-      - linters: [gosec]
-        path: cmd_ui\.go
-        text: "G204"
       # Autotask documents specific header names (ApiIntegrationCode, UserName);
       # HTTP/2 lower-cases header names on the wire anyway, so canonical form is
       # irrelevant to the server. Keep the documented names for readability.

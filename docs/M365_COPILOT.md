@@ -40,7 +40,7 @@ between today's local CLI/MCP server and a tenant-deployable Copilot plugin.
 - The local stdio MCP surface is intentionally broader than the hosted M365
   surface. Local/admin tools such as `config set`, `company alias`, local timer
   state commands, and `config doctor` remain available locally but are hidden
-  from the `m365` toolset.
+  from the `m365` toolset through registry surface metadata.
 
 ## Microsoft 365 Copilot constraints
 
@@ -212,7 +212,6 @@ Phase 1 remote toolset currently excludes:
 - `resource search`: useful during onboarding, but not for runtime agents.
 - `timer start/status/note/pause/resume/switch/stop`: currently local state.
 - `ticket close`: only after ownership checks are added.
-- `ui`: local interactive app.
 
 `ticket close` can be added after the gateway verifies that the ticket is
 assigned to the caller's resource, or the caller has an explicit manager/admin
