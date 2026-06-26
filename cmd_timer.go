@@ -257,6 +257,11 @@ func (a *App) cmdTimerStop(args []string) (*cmdResult, error) {
 	if strings.TrimSpace(notesText) == "" {
 		return nil, hinted(`add --note "..." (or jot notes during the session with `+"`atem timer note`"+`)`, "time entry needs a note (Autotask rejects a blank summaryNotes)")
 	}
+	if *closeTicket {
+		if _, err := a.completeTicketStatus(); err != nil {
+			return nil, err
+		}
+	}
 	timeEntry := a.timeEntryFields(resourceID, s.TicketID, hours, notesText, worked)
 
 	var createTicket map[string]any

@@ -49,8 +49,17 @@ func (a *App) ticketFieldsWithOptions(companyID int, title, desc string, opts ti
 	fields := map[string]any{
 		"companyID": companyID,
 		"title":     title,
-		"status":    defOr(a.cfg.Defaults.TicketStatusNew, 1),
-		"priority":  defOr(a.cfg.Defaults.Priority, 1),
+	}
+	var warnings []string
+	if a.cfg.Defaults.TicketStatusNew != 0 {
+		fields["status"] = a.cfg.Defaults.TicketStatusNew
+	} else {
+		warnings = append(warnings, "defaults.ticketStatusNew is not set; Autotask may require a configured new-ticket status")
+	}
+	if a.cfg.Defaults.Priority != 0 {
+		fields["priority"] = a.cfg.Defaults.Priority
+	} else {
+		warnings = append(warnings, "defaults.priority is not set; Autotask may require a configured ticket priority")
 	}
 	if opts.issueType != 0 {
 		fields["issueType"] = opts.issueType
@@ -61,7 +70,6 @@ func (a *App) ticketFieldsWithOptions(companyID int, title, desc string, opts ti
 	if opts.contactID != 0 {
 		fields["contactID"] = opts.contactID
 	}
-	var warnings []string
 	if a.cfg.Defaults.QueueID != 0 {
 		fields["queueID"] = a.cfg.Defaults.QueueID
 	} else {
@@ -80,6 +88,17 @@ func (a *App) ticketFieldsWithOptions(companyID int, title, desc string, opts ti
 		fields["assignedResourceRoleID"] = roleID
 	}
 	return fields, warnings
+}
+
+func (a *App) completeTicketStatus() (int, error) {
+	status := a.cfg.Defaults.TicketStatusComplete
+	if status == 0 {
+		return 0, hinted(
+			"run `atem config doctor`, then `atem config set ticketStatusComplete <id>`",
+			"ticketStatusComplete is unset (needed to close tickets)",
+		)
+	}
+	return status, nil
 }
 
 func (o ticketFieldOptions) classificationWarnings() []string {
@@ -373,7 +392,10 @@ func (a *App) cmdTicketClose(args []string) (*cmdResult, error) {
 		return nil, err
 	}
 
-	status := defOr(a.cfg.Defaults.TicketStatusComplete, 5)
+	status, err := a.completeTicketStatus()
+	if err != nil {
+		return nil, err
+	}
 	fields := map[string]any{"id": id, "status": status}
 	if *dryRun {
 		return &cmdResult{action: "ticket.close", dryRun: true, data: TicketCloseDryRun{Fields: fields}}, nil

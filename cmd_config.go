@@ -151,6 +151,15 @@ func (a *App) doctorRecommendations() []string {
 	if d.QueueID == 0 {
 		rec = append(rec, "queueId is unset (required to create tickets) — pick from picklists.ticketQueue: atem config set queueId <id>")
 	}
+	if d.TicketStatusNew == 0 {
+		rec = append(rec, "ticketStatusNew is unset (new-ticket status) — pick from picklists.ticketStatus: atem config set ticketStatusNew <id>")
+	}
+	if d.TicketStatusComplete == 0 {
+		rec = append(rec, "ticketStatusComplete is unset (status used to close tickets) — pick from picklists.ticketStatus: atem config set ticketStatusComplete <id>")
+	}
+	if d.Priority == 0 {
+		rec = append(rec, "priority is unset (ticket priority) — pick from picklists.ticketPriority: atem config set priority <id>")
+	}
 	if a.cfg.Resource() == 0 {
 		rec = append(rec, `resourceId is unset (who time is logged as) — atem resource search "<your name>" then atem config set resourceId <id>`)
 	}

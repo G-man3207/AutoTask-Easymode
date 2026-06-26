@@ -46,7 +46,10 @@ func (a *App) ensureJournalClosed(ctx context.Context, client autotaskClient, jo
 	if rec.Closed {
 		return true, nil
 	}
-	status := defOr(a.cfg.Defaults.TicketStatusComplete, 5)
+	status, err := a.completeTicketStatus()
+	if err != nil {
+		return false, err
+	}
 	if _, err := client.Update(ctx, atapi.EntityTickets, map[string]any{"id": ticketID, "status": status}); err != nil {
 		return false, err
 	}

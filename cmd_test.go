@@ -148,6 +148,50 @@ func TestTicketCreateDryRun(t *testing.T) {
 	}
 }
 
+func TestTicketFieldsUseOnlyConfiguredOrgDefaults(t *testing.T) {
+	tests := []struct {
+		name         string
+		configure    func(*App)
+		wantStatus   int64
+		wantPriority int64
+		wantWarnings []string
+	}{
+		{
+			name:         "unset",
+			wantWarnings: []string{"ticketStatusNew", "priority"},
+		},
+		{
+			name: "configured",
+			configure: func(app *App) {
+				app.cfg.Defaults.TicketStatusNew = 8
+				app.cfg.Defaults.Priority = 4
+			},
+			wantStatus:   8,
+			wantPriority: 4,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := newTestApp(t, nil)
+			if tt.configure != nil {
+				tt.configure(app)
+			}
+			fields, warnings := app.ticketFields(123, "x", "what it's about")
+			if asInt64(fields["status"]) != tt.wantStatus {
+				t.Fatalf("status = %v, want %d; fields=%+v", fields["status"], tt.wantStatus, fields)
+			}
+			if asInt64(fields["priority"]) != tt.wantPriority {
+				t.Fatalf("priority = %v, want %d; fields=%+v", fields["priority"], tt.wantPriority, fields)
+			}
+			for _, warning := range tt.wantWarnings {
+				if !warningsContain(warnings, warning) {
+					t.Fatalf("expected warning containing %q, got %v", warning, warnings)
+				}
+			}
+		})
+	}
+}
+
 func TestTicketIssueTypesGroupsSubIssues(t *testing.T) {
 	fc := &fakeClient{fields: []atapi.Field{
 		{Name: "issueType", PicklistValues: []atapi.PicklistValue{
@@ -343,6 +387,49 @@ func TestTicketCloseReal(t *testing.T) {
 	}
 }
 
+func TestCloseCommandsRequireConfiguredCompleteStatus(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(*App) (*cmdResult, error)
+	}{
+		{
+			name: "ticket close",
+			run: func(app *App) (*cmdResult, error) {
+				return app.cmdTicketClose([]string{"4242"})
+			},
+		},
+		{
+			name: "timer stop close",
+			run: func(app *App) (*cmdResult, error) {
+				app.cfg.ResourceID = 55
+				s := app.state.Start("a", 123, "A", testNow, false)
+				s.TicketID = 4242
+				s.AddNote("did the thing")
+				return app.cmdTimerStop([]string{"s1", "--hours", "1", "--close"})
+			},
+		},
+		{
+			name: "time add close",
+			run: func(app *App) (*cmdResult, error) {
+				app.cfg.ResourceID = 55
+				return app.cmdTimeAdd([]string{"--ticket", "4242", "--windows", "11-12", "--note", "did the thing", "--close"})
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fc := &fakeClient{}
+			app := newTestApp(t, fc)
+			if _, err := tt.run(app); err == nil || !strings.Contains(err.Error(), "ticketStatusComplete") {
+				t.Fatalf("err = %v, want missing ticketStatusComplete", err)
+			}
+			if len(fc.creates) != 0 || len(fc.updates) != 0 {
+				t.Fatalf("close without configured status must not write; creates=%+v updates=%+v", fc.creates, fc.updates)
+			}
+		})
+	}
+}
+
 func TestTimerStartDryRunDoesNotMutate(t *testing.T) {
 	app := newTestApp(t, nil)
 	res, err := app.cmdTimerStart([]string{"--company", "123", "--title", "map", "--dry-run"})
@@ -530,6 +617,7 @@ func TestTimerStopLogsTimeAndCloses(t *testing.T) {
 	app := newTestApp(t, fc)
 	app.cfg.ResourceID = 55
 	app.cfg.Defaults.QueueID = 8
+	app.cfg.Defaults.TicketStatusComplete = 5
 	s := app.state.Start("a", 123, "A", testNow, false)
 	s.TicketID = 4242
 	s.AddNote("did the thing")

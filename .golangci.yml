@@ -22,7 +22,14 @@ linters:
   #   ireturn      - we deliberately return the autotaskClient interface for tests.
   #   goconst      - flags repeated JSON output keys and command names where
   #                  string literals are clearer than constants.
-  #   mnd/depguard/lll/godox/testpackage/paralleltest/err113 - noise or N/A here.
+  #   mnd          - flags too many benign CLI arity, permission, and limit literals;
+  #                  org-specific Autotask IDs must stay in config and tests.
+  #   depguard     - import policy is simple enough for go.mod plus review here.
+  #   lll          - user-facing hint/guidance strings are clearer unwrapped.
+  #   godox        - TODO-style comment policy is not useful for this tiny CLI.
+  #   testpackage  - internal packages test small unexported helpers directly.
+  #   paralleltest - tests frequently share env/fake client state and stay serial.
+  #   err113       - dynamic user-facing errors keep CLI JSON clearer than sentinels.
   default: none
   enable:
     # --- correctness / bugs ---
@@ -58,6 +65,7 @@ linters:
     - gocyclo
     - gocognit
     - cyclop
+    - dupl
     - funlen
     - nestif
     - maintidx
@@ -151,13 +159,29 @@ linters:
   exclusions:
     generated: lax
     rules:
-      # gosec: the only "variable URL" requests are to the configured Autotask
-      # zone (not user-tainted); the only "variable path" file reads/tainted
-      # path reads are the app's own config/state/journal files; and persisting
-      # the secret to the 0600 config file is an opt-in (ATEM_SECRET is the
-      # recommended alternative).
+      # gosec G304: the auth profile path is administrator-provided config, not
+      # customer input.
       - linters: [gosec]
-        text: "(G107|G304|G117|G703)"
+        path: auth\.go
+        text: "G304"
+      # gosec G304: config reads are the app's own config file (or test temp
+      # paths), and config writes go through 0600 atomic persistence.
+      - linters: [gosec]
+        path: internal/config/
+        text: "G304"
+      # gosec G304: timer state reads are the app's own local state file.
+      - linters: [gosec]
+        path: internal/timer/
+        text: "G304"
+      # gosec G304/G703: the journal path is the app's own local write journal.
+      - linters: [gosec]
+        path: write_journal\.go
+        text: "(G304|G703)"
+      # gosec G304: atomicfile opens the same directory as the target path only
+      # to fsync it after an atomic rename.
+      - linters: [gosec]
+        path: internal/atomicfile/
+        text: "G304"
       # The config UI opens the browser via a fixed OS launcher with our own
       # 127.0.0.1 URL (not user input).
       - linters: [gosec]
@@ -181,9 +205,8 @@ linters:
           - unparam
 
 formatters:
-  # gofumpt only: the project has no third-party dependencies, so goimports'
-  # local-prefix grouping is unnecessary and merely conflicts with gofumpt's
-  # import handling. gofumpt is a strict superset of gofmt.
+  # gofumpt only: import grouping is simple enough here, and gofumpt is a strict
+  # superset of gofmt.
   enable:
     - gofumpt
   settings:

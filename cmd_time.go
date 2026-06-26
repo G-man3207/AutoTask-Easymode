@@ -78,6 +78,11 @@ func (a *App) cmdTimeAdd(args []string) (*cmdResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	if *closeTicket {
+		if _, err := a.completeTicketStatus(); err != nil {
+			return nil, err
+		}
+	}
 
 	entries := make([]map[string]any, 0, len(windows))
 	total := 0.0

@@ -174,6 +174,7 @@ func TestTimeAddCreatesEntriesAndCloses(t *testing.T) {
 	app := newTestApp(t, fc)
 	app.cfg.ResourceID = 55
 	app.cfg.Defaults.QueueID = 8
+	app.cfg.Defaults.TicketStatusComplete = 5
 
 	res, err := app.cmdTimeAdd([]string{"--company", "0", "--date", "2026-06-15", "--windows", "11-12=A,13-15=B", "--desc", "project work", "--close"})
 	if err != nil {
@@ -219,6 +220,7 @@ func TestTimeAddResumesPartialWriteFromJournal(t *testing.T) {
 	app := newTestApp(t, fc)
 	app.cfg.ResourceID = 55
 	app.cfg.Defaults.QueueID = 8
+	app.cfg.Defaults.TicketStatusComplete = 5
 	args := []string{"--company", "0", "--date", "2026-06-15", "--windows", "11-12=A,13-15=B", "--desc", "project work", "--close"}
 
 	if _, err := app.cmdTimeAdd(args); err == nil {
