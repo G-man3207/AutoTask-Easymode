@@ -70,7 +70,9 @@ primary contact only. Creating a new contact uses `Contacts` with `companyID`,
 `firstName`, `lastName`, `emailAddress`, and `isActive = 1`; the write goes
 through the `Companies/{companyID}/Contacts` child collection because Autotask
 parents contact writes by company. The agent should do that only after
-confirming the person is not already present.
+confirming the person is not already present. When `ticket create` or `time add`
+receives `--contact`, atem fetches the contact first and rejects the write if the
+contact belongs to a different company than the ticket.
 
 **Logging time on a (service) ticket** requires:
 

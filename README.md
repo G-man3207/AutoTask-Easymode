@@ -154,7 +154,9 @@ Notes:
   When the work involved a named customer person, pass the returned id as
   `--contact` on `ticket create` or on `time add` when it creates a ticket. If no
   match is found, the agent should ask before creating a new contact, then collect
-  first name, last name, and email for `contact create --dry-run`/commit.
+  first name, last name, and email for `contact create --dry-run`/commit. Contact
+  is encouraged but not mandatory; omit it when no person is known. The backend
+  verifies that any `--contact` belongs to the same company as the new ticket.
 - Use `--dry-run` on any write to preview the exact payload first.
 - `report --match <keyword>` finds tickets by title keyword (across the whole
   account, or a single `--company`) and aggregates them in one call — ideal for a

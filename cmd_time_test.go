@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -115,6 +116,29 @@ func TestTimeAddDryRun(t *testing.T) {
 	}
 	if asInt64(entries[0]["ticketID"]) != 100 {
 		t.Errorf("ticketID = %v, want 100", entries[0]["ticketID"])
+	}
+}
+
+func TestTimeAddRejectsContactFromOtherCompany(t *testing.T) {
+	fc := &fakeClient{items: map[int64]map[string]any{
+		300: {"id": float64(300), "companyID": float64(999), "isActive": 1},
+	}}
+	app := newTestApp(t, fc)
+	app.cfg.ResourceID = 55
+
+	_, err := app.cmdTimeAdd([]string{
+		"--company", "0",
+		"--title", "Website",
+		"--desc", "Work on website",
+		"--windows", "11-12",
+		"--note", "Reviewed publish issue",
+		"--contact", "300",
+	})
+	if err == nil || !strings.Contains(err.Error(), "belongs to company 999") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(fc.creates) != 0 {
+		t.Fatalf("must not create ticket/time with cross-company contact: %+v", fc.creates)
 	}
 }
 

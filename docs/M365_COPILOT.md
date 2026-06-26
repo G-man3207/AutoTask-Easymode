@@ -28,9 +28,11 @@ between today's local CLI/MCP server and a tenant-deployable Copilot plugin.
   365/work context does not clearly map to one option.
 - The hosted toolset includes contact search/create. Agents should search active
   contacts within the selected company when the user mentions who they spoke
-  with, pass the returned contact id on new tickets, and only create a contact
-  after the user confirms the person is missing and provides first name, last
-  name, and email.
+  with, ask for the contact when the work clearly involved a customer person,
+  pass the returned contact id on new tickets, and only create a contact after
+  the user confirms the person is missing and provides first name, last name, and
+  email. Contact is encouraged, not mandatory. The backend rejects any contact id
+  that does not belong to the same company as the ticket being created.
 - Copilot Studio MCP connections can become stale when the Entra access token
   expires. Request `offline_access` in the OAuth scopes and, if Copilot still
   does not refresh silently, assign an app-scoped Entra access-token lifetime

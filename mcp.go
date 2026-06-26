@@ -422,8 +422,10 @@ var mcpPromptList = []mcpPrompt{
 				"- One ticket per distinct task; search for an existing ticket and attach to it, " +
 				"else create one. company id 0 is valid (the owner org).\n" +
 				"- If the work involved a customer contact or the user mentions who they spoke with, " +
-				"use contact_search within the company and pass the contact id when creating the ticket. " +
-				"If the contact is missing, ask before creating it and collect first name, last name, and email.\n" +
+				"ask who it was if needed, use contact_search within the same company as the ticket, " +
+				"and pass that contact id when creating the ticket. Never reuse a contact id from another company. " +
+				"If the contact is missing, ask before creating it and collect first name, last name, and email. " +
+				"Omit contact when no person is known or the work is internal/system-only.\n" +
 				"- When creating a ticket, treat issue-type/sub-issue-type as expected, not optional. " +
 				"Use ticket_issue-types to choose them. Omit them only for genuinely unclear or unusual cases; " +
 				"ask first if it is ambiguous.\n" +

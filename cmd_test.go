@@ -248,6 +248,47 @@ func TestTicketCreateReal(t *testing.T) {
 	}
 }
 
+func TestTicketCreateAcceptsContactFromSameCompany(t *testing.T) {
+	fc := &fakeClient{items: map[int64]map[string]any{
+		300: {"id": float64(300), "companyID": float64(123), "isActive": 1},
+	}}
+	app := newTestApp(t, fc)
+	res, err := app.cmdTicketCreate([]string{
+		"--company", "123",
+		"--title", "hello",
+		"--desc", "fixed the thing",
+		"--contact", "300",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fc.creates) != 1 || asInt64(fc.creates[0].fields["contactID"]) != 300 {
+		t.Fatalf("creates = %+v", fc.creates)
+	}
+	if asInt64(dataMap(t, res)["ticketId"]) == 0 {
+		t.Fatal("expected ticketId")
+	}
+}
+
+func TestTicketCreateRejectsContactFromOtherCompany(t *testing.T) {
+	fc := &fakeClient{items: map[int64]map[string]any{
+		300: {"id": float64(300), "companyID": float64(999), "isActive": 1},
+	}}
+	app := newTestApp(t, fc)
+	_, err := app.cmdTicketCreate([]string{
+		"--company", "123",
+		"--title", "hello",
+		"--desc", "fixed the thing",
+		"--contact", "300",
+	})
+	if err == nil || !strings.Contains(err.Error(), "belongs to company 999") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(fc.creates) != 0 {
+		t.Fatalf("must not create ticket with cross-company contact: %+v", fc.creates)
+	}
+}
+
 func TestTicketFieldsAssignsResource(t *testing.T) {
 	app := newTestApp(t, nil)
 	app.cfg.ResourceID = 1001

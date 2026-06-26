@@ -2,6 +2,7 @@ package main
 
 import (
 	"autotask-easymode/internal/atapi"
+	"context"
 	"strconv"
 	"strings"
 )
@@ -99,7 +100,67 @@ func (o ticketFieldOptions) contactWarnings() []string {
 	if !o.preferContact || o.contactID != 0 {
 		return nil
 	}
-	return []string{"contactID is unset; if the work involved a customer contact or the user mentioned who they spoke with, run contact search/create and pass --contact. Omit only for internal/system work or when no person is known."}
+	return []string{"contactID is unset; ask who the user spoke with when the work involved a customer person, then run contact search within the target company and pass --contact. Omit only for internal/system work, unclear cases, or when no person is known."}
+}
+
+func validateTicketContact(ctx context.Context, client autotaskClient, companyID int, contactID int64) error {
+	if contactID == 0 {
+		return nil
+	}
+	contact, err := client.GetByID(ctx, atapi.EntityContacts, contactID)
+	if err != nil {
+		return err
+	}
+	rawCompanyID, ok := contact["companyID"]
+	if !ok {
+		return hinted(
+			"run contact search for the target company and use one of the returned ids",
+			"contact %d lookup did not return a companyID",
+			contactID,
+		)
+	}
+	contactCompanyID := asInt64(rawCompanyID)
+	if contactCompanyID != int64(companyID) {
+		return hinted(
+			"run contact search/create under the same company as the ticket; never reuse a contact id from another company",
+			"contact %d belongs to company %d, not company %d",
+			contactID, contactCompanyID, companyID,
+		)
+	}
+	if active, ok := contact["isActive"]; ok && !contactActive(active) {
+		return hinted(
+			"ask the user for a different active contact, or omit --contact if no active person is known",
+			"contact %d is not active",
+			contactID,
+		)
+	}
+	return nil
+}
+
+func validateCreateTicketContact(ctx context.Context, client autotaskClient, fields map[string]any) error {
+	contactID := asInt64(fields["contactID"])
+	if contactID == 0 {
+		return nil
+	}
+	return validateTicketContact(ctx, client, int(asInt64(fields["companyID"])), contactID)
+}
+
+func contactActive(v any) bool {
+	switch x := v.(type) {
+	case bool:
+		return x
+	case int:
+		return x != 0
+	case int64:
+		return x != 0
+	case float64:
+		return x != 0
+	case string:
+		s := strings.TrimSpace(strings.ToLower(x))
+		return s == "1" || s == "true" || s == "yes"
+	default:
+		return false
+	}
 }
 
 func (a *App) cmdTicketIssueTypes(args []string) (*cmdResult, error) {
@@ -236,6 +297,9 @@ func (a *App) cmdTicketCreate(args []string) (*cmdResult, error) {
 	defer cancel()
 	client, err := a.newClient(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateTicketContact(ctx, client, companyID, *contactID); err != nil {
 		return nil, err
 	}
 	id, err := client.Create(ctx, atapi.EntityTickets, fields)

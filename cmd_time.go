@@ -146,6 +146,9 @@ func (a *App) executeTimeAdd(createTicket map[string]any, entries []map[string]a
 
 	ticketID := asInt64(entries[0]["ticketID"])
 	if createTicket != nil {
+		if verr := validateCreateTicketContact(ctx, client, createTicket); verr != nil {
+			return nil, verr
+		}
 		id, cerr := client.Create(ctx, atapi.EntityTickets, createTicket)
 		if cerr != nil {
 			return nil, cerr

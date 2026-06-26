@@ -50,7 +50,7 @@ func (a *App) cmdContactSearch(args []string) (*cmdResult, error) {
 		Company:  sa.company,
 		Count:    len(contacts),
 		Contacts: contacts,
-		Guidance: "Use a returned contact id as ticket_create/time_add contact. If the person is not found, ask the user whether to create a new contact and collect first name, last name, and email before calling contact_create.",
+		Guidance: "Use a returned contact id only for tickets under this same company. If the work involved a customer person and no match is found, ask the user whether to create a new contact and collect first name, last name, and email before calling contact_create. It is okay to omit contact when no person is known.",
 	}}, nil
 }
 
