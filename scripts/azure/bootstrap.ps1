@@ -197,7 +197,7 @@ function Ensure-ContainerApp {
             --max-replicas 3 `
             --cpu 0.25 `
             --memory 0.5Gi `
-            --env-vars ATEM_HTTP_ADDR=:8080 ATEM_MCP_TOOLSET=m365 ATEM_TIMEZONE=Europe/Stockholm `
+            --env-vars ATEM_HTTP_ADDR=:8080 ATEM_MCP_TOOLSET=m365 ATEM_AUTH_MODE=entra ATEM_TIMEZONE=Europe/Stockholm `
             --output none
     }
 

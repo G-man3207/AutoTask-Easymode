@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -280,6 +281,16 @@ func commandByToolNameFor(tool string, cmds []command) *command {
 // buildArgv turns MCP tool arguments into a CLI argument vector. Positional
 // arguments come first (in registry order), then --flags.
 func buildArgv(c command, args map[string]any) ([]string, error) {
+	known := map[string]cmdFlag{}
+	for _, f := range c.Flags {
+		known[f.Name] = f
+	}
+	for name := range args {
+		if _, ok := known[name]; !ok {
+			return nil, hinted("use only arguments from the tool schema", "%s: unknown argument %q", c.Name, name)
+		}
+	}
+
 	var positionals, flags []string
 	for _, f := range c.Flags {
 		v, ok := args[f.Name]
@@ -289,38 +300,80 @@ func buildArgv(c command, args map[string]any) ([]string, error) {
 			}
 			continue
 		}
+		token, include, err := argToken(f, v)
+		if err != nil {
+			return nil, hinted("send the value with the JSON type declared in the tool schema", "%s: argument %q expects %s, got %T", c.Name, f.Name, f.Type, v)
+		}
 		if f.Positional {
-			positionals = append(positionals, argString(v))
+			positionals = append(positionals, token)
 			continue
 		}
 		if f.Type == "bool" {
-			if b, _ := v.(bool); b {
+			if include {
 				flags = append(flags, "--"+f.Name)
 			}
 			continue
 		}
-		flags = append(flags, "--"+f.Name, argString(v))
+		flags = append(flags, "--"+f.Name, token)
 	}
 	return append(positionals, flags...), nil
 }
 
-// argString coerces a JSON-decoded value to a CLI token. Whole-number floats
-// render without a decimal point so int flags parse cleanly.
-func argString(v any) string {
-	switch x := v.(type) {
-	case string:
-		return x
-	case bool:
-		return strconv.FormatBool(x)
-	case float64:
-		if x == float64(int64(x)) {
-			return strconv.FormatInt(int64(x), 10)
+func argToken(f cmdFlag, v any) (string, bool, error) {
+	switch f.Type {
+	case "string":
+		s, ok := v.(string)
+		if !ok {
+			return "", false, errors.New("not a string")
 		}
-		return strconv.FormatFloat(x, 'f', -1, 64)
-	case nil:
-		return ""
+		return s, true, nil
+	case "int":
+		i, ok := jsonInt(v)
+		if !ok {
+			return "", false, errors.New("not an integer")
+		}
+		return strconv.FormatInt(i, 10), true, nil
+	case "float":
+		fv, ok := jsonFloat(v)
+		if !ok {
+			return "", false, errors.New("not a number")
+		}
+		return strconv.FormatFloat(fv, 'f', -1, 64), true, nil
+	case "bool":
+		b, ok := v.(bool)
+		if !ok {
+			return "", false, errors.New("not a boolean")
+		}
+		return "", b, nil
 	default:
-		return fmt.Sprintf("%v", x)
+		return "", false, fmt.Errorf("unknown flag type %q", f.Type)
+	}
+}
+
+func jsonInt(v any) (int64, bool) {
+	switch n := v.(type) {
+	case float64:
+		i := int64(n)
+		return i, n == float64(i)
+	case int:
+		return int64(n), true
+	case int64:
+		return n, true
+	default:
+		return 0, false
+	}
+}
+
+func jsonFloat(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	default:
+		return 0, false
 	}
 }
 

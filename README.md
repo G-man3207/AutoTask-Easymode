@@ -275,7 +275,7 @@ Example profile JSON:
     "objectId": "11111111-1111-1111-1111-111111111111",
     "resourceId": 12345,
     "roleId": 67890,
-    "scopes": ["company:read", "ticket:read", "ticket:create", "time:add", "report:read"]
+    "scopes": ["company:read", "ticket:read", "ticket:create", "contact:create", "time:add", "report:read"]
   }
 ]
 ```

@@ -92,7 +92,7 @@ Example `atem-auth-profiles` value:
     "objectId": "<test-user-object-id>",
     "resourceId": 29682903,
     "roleId": 29683464,
-    "scopes": ["company:read", "ticket:read", "ticket:create", "time:add", "report:read"]
+    "scopes": ["company:read", "ticket:read", "ticket:create", "contact:create", "time:add", "report:read"]
   }
 ]
 ```
@@ -122,9 +122,9 @@ az containerapp update -g "<resource-group>" -n "<container-app-name>" --set-env
   ATEM_TICKET_STATUS_COMPLETE="<complete-status-id>"
 ```
 
-The Container App can start with `ATEM_AUTH_MODE=none` for smoke testing before
-the Microsoft 365 Copilot app registration/audience exists. Switch it to `entra`
-before connecting a real Copilot test user.
+Hosted MCP should run with `ATEM_AUTH_MODE=entra`. Unauthenticated HTTP MCP is
+only intended for loopback-only local testing, or an explicit
+`--allow-unauthenticated` override in a controlled environment.
 
 ## Copilot OAuth connection lifetime
 

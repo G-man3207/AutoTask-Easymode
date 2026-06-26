@@ -216,6 +216,49 @@ func TestMCPToolsCallDryRun(t *testing.T) {
 	}
 }
 
+func TestMCPToolsCallRejectsBoolStringDryRun(t *testing.T) {
+	fc := &fakeClient{}
+	app := newTestApp(t, fc)
+	app.cfg.Defaults.QueueID = 8
+	params, _ := json.Marshal(map[string]any{
+		"name":      "ticket_create",
+		"arguments": map[string]any{"company": "123", "title": "x", "desc": "what it's about", "dry-run": "true"},
+	})
+	res, rerr := app.mcpToolsCall(params)
+	if rerr != nil {
+		t.Fatalf("rpc error: %v", rerr)
+	}
+	if res["isError"] != true {
+		t.Fatalf("expected argument type failure, got %v", res)
+	}
+	if len(fc.creates) != 0 {
+		t.Fatalf("wrongly performed live create: %+v", fc.creates)
+	}
+	text := toolText(t, res)
+	if !strings.Contains(text, "dry-run") || !strings.Contains(text, "expects bool") {
+		t.Fatalf("unexpected error text: %s", toolText(t, res))
+	}
+}
+
+func TestMCPToolsCallRejectsUnknownArgument(t *testing.T) {
+	app := newTestApp(t, &fakeClient{})
+	params, _ := json.Marshal(map[string]any{
+		"name":      "ticket_search",
+		"arguments": map[string]any{"query": "vpn", "surprise": true},
+	})
+	res, rerr := app.mcpToolsCall(params)
+	if rerr != nil {
+		t.Fatalf("rpc error: %v", rerr)
+	}
+	if res["isError"] != true {
+		t.Fatalf("expected unknown argument failure, got %v", res)
+	}
+	text := toolText(t, res)
+	if !strings.Contains(text, "unknown argument") || !strings.Contains(text, "surprise") {
+		t.Fatalf("unexpected error text: %s", toolText(t, res))
+	}
+}
+
 func TestMCPSchemaEnum(t *testing.T) {
 	for _, tool := range mcpTools() {
 		if tool["name"] != "report" {
@@ -383,6 +426,35 @@ func TestHTTPHealthz(t *testing.T) {
 
 	if rr.Code != http.StatusOK || strings.TrimSpace(rr.Body.String()) != `{"ok":true}` {
 		t.Fatalf("healthz status/body = %d %q", rr.Code, rr.Body.String())
+	}
+}
+
+func TestValidateHTTPAuthExposure(t *testing.T) {
+	tests := []struct {
+		name   string
+		addr   string
+		auth   string
+		allow  bool
+		wantOK bool
+	}{
+		{name: "non-loopback none rejected", addr: ":8080", auth: "none"},
+		{name: "wildcard none rejected", addr: "0.0.0.0:8080", auth: "none"},
+		{name: "loopback none allowed", addr: "127.0.0.1:8080", auth: "none", wantOK: true},
+		{name: "localhost none allowed", addr: "localhost:8080", auth: "none", wantOK: true},
+		{name: "ipv6 loopback none allowed", addr: "[::1]:8080", auth: "none", wantOK: true},
+		{name: "explicit override allowed", addr: ":8080", auth: "none", allow: true, wantOK: true},
+		{name: "entra allowed anywhere", addr: ":8080", auth: "entra", wantOK: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateHTTPAuthExposure(tt.addr, tt.auth, tt.allow)
+			if tt.wantOK && err != nil {
+				t.Fatalf("expected ok, got %v", err)
+			}
+			if !tt.wantOK && err == nil {
+				t.Fatal("expected exposure error")
+			}
+		})
 	}
 }
 

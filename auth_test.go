@@ -263,6 +263,26 @@ func TestM365ToolsListIsFilteredByProfileScopes(t *testing.T) {
 	}
 }
 
+func TestContactCreateRequiresContactScope(t *testing.T) {
+	app := newTestApp(t, &fakeClient{}).withProfile(&TechnicianProfile{
+		TenantID: "tenant-1", ObjectID: "object-1", ResourceID: 77, RoleID: 88, Scopes: []string{"company:read", "ticket:create"},
+	})
+	params, _ := json.Marshal(map[string]any{
+		"name":      "contact_create",
+		"arguments": map[string]any{"company": "123", "first-name": "Anna", "last-name": "Andersson", "email": "anna@example.com", "dry-run": true},
+	})
+	res, rerr := app.mcpToolsCallWithSurface(params, m365MCPSurface())
+	if rerr != nil {
+		t.Fatalf("rpc error: %v", rerr)
+	}
+	if res["isError"] != true {
+		t.Fatalf("expected contact scope failure, got %v", res)
+	}
+	if !strings.Contains(toolText(t, res), "needs contact:create") {
+		t.Fatalf("unexpected error text: %s", toolText(t, res))
+	}
+}
+
 func testOIDCServer(t *testing.T, key *rsa.PrivateKey, kid, issuer string) string {
 	t.Helper()
 	var server *httptest.Server

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -19,12 +20,19 @@ func (a *App) serveHTTPCommand(args []string) int {
 	addr := fs.String("addr", envDefault("ATEM_HTTP_ADDR", defaultHTTPAddr), "HTTP listen address")
 	toolset := fs.String("toolset", envDefault("ATEM_MCP_TOOLSET", "m365"), "MCP toolset: m365 or all")
 	authMode := fs.String("auth", envDefault("ATEM_AUTH_MODE", "none"), "auth mode: none or entra")
+	allowUnauthenticated := fs.Bool("allow-unauthenticated", envBool("ATEM_ALLOW_UNAUTHENTICATED"), "allow auth none on a non-loopback listener")
 	tenantID := fs.String("tenant-id", envDefault("ATEM_ENTRA_TENANT_ID", ""), "expected Entra tenant id")
 	audience := fs.String("audience", envDefault("ATEM_ENTRA_AUDIENCE", ""), "expected Entra token audience")
 	metadataURL := fs.String("metadata-url", envDefault("ATEM_ENTRA_METADATA_URL", ""), "optional Entra OIDC metadata URL")
 	profileFile := fs.String("profile-file", envDefault("ATEM_AUTH_PROFILE_FILE", ""), "technician profile JSON file")
 	if err := fs.Parse(args); err != nil {
 		if !emitJSON(os.Stdout, os.Stderr, resultFromError(usageErr("serve", err))) {
+			return 1
+		}
+		return 1
+	}
+	if err := validateHTTPAuthExposure(*addr, *authMode, *allowUnauthenticated); err != nil {
+		if !emitJSON(os.Stdout, os.Stderr, resultFromError(err)) {
 			return 1
 		}
 		return 1
@@ -69,6 +77,46 @@ func envDefault(name, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envBool(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func validateHTTPAuthExposure(addr, authMode string, allowUnauthenticated bool) error {
+	switch strings.ToLower(strings.TrimSpace(authMode)) {
+	case "", "none":
+		if allowUnauthenticated || isLoopbackListenAddr(addr) {
+			return nil
+		}
+		return hinted(
+			"set ATEM_AUTH_MODE=entra for hosted MCP, or bind to 127.0.0.1 for local unauthenticated testing",
+			"refusing to serve unauthenticated MCP on non-loopback address %q", addr,
+		)
+	default:
+		return nil
+	}
+}
+
+func isLoopbackListenAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	host = strings.Trim(strings.TrimSpace(host), "[]")
+	if host == "" {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func (a *App) serveHTTPMCP(addr string, surface mcpSurface, authn mcpAuthenticator) int {

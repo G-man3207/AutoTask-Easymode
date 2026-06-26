@@ -25,4 +25,4 @@ ENV XDG_CONFIG_HOME=/tmp/.config
 EXPOSE 8080
 
 ENTRYPOINT ["/usr/local/bin/atem"]
-CMD ["serve", "--addr", ":8080", "--toolset", "m365"]
+CMD ["serve", "--addr", ":8080", "--toolset", "m365", "--auth", "entra"]
