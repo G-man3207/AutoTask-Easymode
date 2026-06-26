@@ -336,10 +336,14 @@ const workdayEndHour = 17
 // --date it is the current time (log-as-you-go). With --date it is that day at
 // the end of the business day, so a backdated entry lands on the worked date.
 func (a *App) workedAnchor(date string) (time.Time, error) {
-	if strings.TrimSpace(date) == "" {
-		return a.now(), nil
+	loc, err := a.workLocation()
+	if err != nil {
+		return time.Time{}, err
 	}
-	d, err := time.ParseInLocation(dateLayout, strings.TrimSpace(date), a.now().Location())
+	if strings.TrimSpace(date) == "" {
+		return a.now().In(loc), nil
+	}
+	d, err := time.ParseInLocation(dateLayout, strings.TrimSpace(date), loc)
 	if err != nil {
 		return time.Time{}, hinted("use YYYY-MM-DD, e.g. --date 2026-06-15", "invalid --date %q", date)
 	}

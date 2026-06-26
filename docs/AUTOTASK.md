@@ -68,6 +68,9 @@ so the work is assigned to you for follow-up.
 - `startDateTime` + `endDateTime` — **required for service tickets**; atem derives
   a window whose length matches the logged hours, ending now by default or — with
   `timer stop --date YYYY-MM-DD` — at the end of that worked business day.
+  Hosted/container runs should set `ATEM_TIMEZONE` (for this deployment,
+  `Europe/Stockholm`) so relative dates and clock windows such as `08-09` are
+  interpreted as local work time before atem sends UTC timestamps to Autotask.
 - work type / allocation code (`billingCodeID`) — the write user is typically
   **not authorized to set it**. Either:
   - leave `billingCodeId` **unset** → Autotask uses the ticket/contract default

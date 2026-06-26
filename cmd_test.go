@@ -319,6 +319,34 @@ func TestWorkedAnchor(t *testing.T) {
 	}
 }
 
+func TestWorkedAnchorUsesConfiguredWorkTimezone(t *testing.T) {
+	t.Setenv(envTimeZone, "Europe/Stockholm")
+	app := newTestApp(t, nil)
+	app.now = func() time.Time {
+		return time.Date(2026, 6, 25, 22, 30, 0, 0, time.UTC)
+	}
+
+	got, err := app.workedAnchor("")
+	if err != nil {
+		t.Fatalf("empty date: %v", err)
+	}
+	if got.Location().String() != "Europe/Stockholm" {
+		t.Fatalf("location = %v, want Europe/Stockholm", got.Location())
+	}
+	if y, m, d := got.Date(); y != 2026 || m != 6 || d != 26 {
+		t.Fatalf("local date = %04d-%02d-%02d, want 2026-06-26", y, m, d)
+	}
+
+	got, err = app.workedAnchor("2026-06-26")
+	if err != nil {
+		t.Fatalf("dated anchor: %v", err)
+	}
+	want := time.Date(2026, 6, 26, workdayEndHour, 0, 0, 0, got.Location())
+	if !got.Equal(want) {
+		t.Fatalf("dated anchor = %v, want %v", got, want)
+	}
+}
+
 func TestTimerStopBackdates(t *testing.T) {
 	fc := &fakeClient{}
 	app := newTestApp(t, fc)

@@ -112,6 +112,7 @@ az containerapp update -g "<resource-group>" -n "<container-app-name>" --set-env
   ATEM_AUTH_MODE=entra `
   ATEM_ENTRA_TENANT_ID="<tenant-id>" `
   ATEM_ENTRA_AUDIENCE="<copilot-api-app-audience>" `
+  ATEM_TIMEZONE="Europe/Stockholm" `
   ATEM_USERNAME=secretref:atem-username `
   ATEM_SECRET=secretref:atem-secret `
   ATEM_INTEGRATION_CODE=secretref:atem-code `

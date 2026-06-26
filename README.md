@@ -248,6 +248,7 @@ For Container Apps, set these environment variables instead:
 | `ATEM_AUTH_PROFILES` | JSON array mapping Entra users to Autotask ids |
 | `ATEM_AUTH_PROFILE_FILE` | optional path alternative to `ATEM_AUTH_PROFILES` |
 | `ATEM_ENTRA_METADATA_URL` | optional OIDC metadata override for tests/sovereign clouds |
+| `ATEM_TIMEZONE` | IANA work time zone for relative dates and clock windows, e.g. `Europe/Stockholm` |
 | `ATEM_QUEUE_ID` | default queue for created tickets |
 | `ATEM_TICKET_STATUS_NEW` | status id for created tickets |
 | `ATEM_TICKET_STATUS_COMPLETE` | status id for close flows |

@@ -118,6 +118,32 @@ func TestTimeAddDryRun(t *testing.T) {
 	}
 }
 
+func TestTimeAddUsesConfiguredWorkTimezone(t *testing.T) {
+	t.Setenv(envTimeZone, "Europe/Stockholm")
+	app := newTestApp(t, &fakeClient{})
+	app.cfg.ResourceID = 55
+	app.now = func() time.Time {
+		return time.Date(2026, 6, 25, 22, 30, 0, 0, time.UTC)
+	}
+
+	res, err := app.cmdTimeAdd([]string{"--ticket", "100", "--windows", "08-09", "--note", "n", "--dry-run"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := dataMap(t, res)
+	if d["date"] != "2026-06-26" {
+		t.Fatalf("date = %v, want Stockholm today 2026-06-26", d["date"])
+	}
+	entriesAny, ok := d["entries"].([]any)
+	if !ok || len(entriesAny) != 1 {
+		t.Fatalf("entries = %v", d["entries"])
+	}
+	entry, _ := entriesAny[0].(map[string]any)
+	if entry["startDateTime"] != "2026-06-26T06:00:00Z" || entry["endDateTime"] != "2026-06-26T07:00:00Z" {
+		t.Fatalf("window = %v..%v, want 08-09 Europe/Stockholm as 06-07Z", entry["startDateTime"], entry["endDateTime"])
+	}
+}
+
 func TestTimeAddCreatesEntriesAndCloses(t *testing.T) {
 	fc := &fakeClient{}
 	app := newTestApp(t, fc)

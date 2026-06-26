@@ -9,7 +9,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata" // Embed IANA time zones for minimal containers.
 )
+
+const envTimeZone = "ATEM_TIMEZONE"
 
 // autotaskClient is the subset of the Autotask API the commands depend on.
 // Defining it here (consumer-side) lets tests substitute a fake.
@@ -57,6 +60,18 @@ func (a *App) roleID() int {
 		return a.profile.RoleID
 	}
 	return a.cfg.Defaults.RoleID
+}
+
+func (a *App) workLocation() (*time.Location, error) {
+	raw := strings.TrimSpace(os.Getenv(envTimeZone))
+	if raw == "" {
+		return a.now().Location(), nil
+	}
+	loc, err := time.LoadLocation(raw)
+	if err != nil {
+		return nil, hinted("set ATEM_TIMEZONE to an IANA time zone such as Europe/Stockholm, or unset it to use the process local time zone", "invalid %s %q: %v", envTimeZone, raw, err)
+	}
+	return loc, nil
 }
 
 // newApp wires an App with real config, state and client factory.

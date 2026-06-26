@@ -53,7 +53,10 @@ func (a *App) cmdTimeAdd(args []string) (*cmdResult, error) {
 		return nil, hinted(`e.g. --windows "11-12,13-15"`, "missing --windows")
 	}
 
-	loc := a.now().Location()
+	loc, err := a.workLocation()
+	if err != nil {
+		return nil, err
+	}
 	day, err := a.resolveWorkDay(*date, loc)
 	if err != nil {
 		return nil, err
