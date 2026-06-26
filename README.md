@@ -329,6 +329,13 @@ Azure Container Apps deployment and GitHub OIDC setup are documented in
 and previewable: every create/close command accepts `--dry-run`, which prints
 what *would* be sent without calling the API or changing local state.
 
+## License
+
+Copyright (C) 2026 Gustaf Ekfeldt.
+
+This project is licensed under the GNU Affero General Public License version 3
+only (`AGPL-3.0-only`). See [LICENSE](LICENSE).
+
 ## Development
 
 ```pwsh
