@@ -137,6 +137,14 @@ func (a *App) timeAddTicket(ticket int64, company, title, desc string, day time.
 // executeTimeAdd performs the Autotask writes for time add: optionally create a
 // ticket, create one time entry per window, optionally close the ticket.
 func (a *App) executeTimeAdd(createTicket map[string]any, entries []map[string]any, closeTicket bool, day time.Time, total float64, warnings []string) (*cmdResult, error) {
+	journal, rec, err := a.beginWriteOperation("time.add", timeAddJournalPayload{
+		CreateTicket: createTicket,
+		Entries:      entries,
+		CloseTicket:  closeTicket,
+	})
+	if err != nil {
+		return nil, err
+	}
 	ctx, cancel := cmdContext()
 	defer cancel()
 	client, err := a.newClient(ctx)
@@ -144,38 +152,41 @@ func (a *App) executeTimeAdd(createTicket map[string]any, entries []map[string]a
 		return nil, err
 	}
 
-	ticketID := asInt64(entries[0]["ticketID"])
-	if createTicket != nil {
-		if verr := validateCreateTicketContact(ctx, client, createTicket); verr != nil {
-			return nil, verr
-		}
-		id, cerr := client.Create(ctx, atapi.EntityTickets, createTicket)
-		if cerr != nil {
-			return nil, cerr
-		}
-		ticketID = id
+	ticketID, err := a.ensureJournalTicket(ctx, client, journal, rec, asInt64(entries[0]["ticketID"]), createTicket, true)
+	if err != nil {
+		return nil, err
 	}
-
-	ids := make([]int64, 0, len(entries))
-	for _, e := range entries {
+	rec.EntryIDs = ensureEntrySlots(rec.EntryIDs, len(entries))
+	if err := journal.touch(rec, a.now()); err != nil {
+		return nil, err
+	}
+	ids := make([]int64, len(entries))
+	for i, e := range entries {
+		if rec.EntryIDs[i] != 0 {
+			ids[i] = rec.EntryIDs[i]
+			continue
+		}
 		e["ticketID"] = ticketID
 		id, cerr := client.Create(ctx, atapi.EntityTimeEntries, e)
 		if cerr != nil {
 			return nil, hinted(
 				"earlier entries were already logged — check the ticket before retrying",
-				"failed after %d of %d time entries: %v", len(ids), len(entries), cerr,
+				"failed after %d of %d time entries: %v", completedEntryCount(rec.EntryIDs), len(entries), cerr,
 			)
 		}
-		ids = append(ids, id)
+		rec.EntryIDs[i] = id
+		ids[i] = id
+		if jerr := journal.touch(rec, a.now()); jerr != nil {
+			return nil, jerr
+		}
 	}
 
-	closed := false
-	if closeTicket {
-		status := defOr(a.cfg.Defaults.TicketStatusComplete, 5)
-		if _, uerr := client.Update(ctx, atapi.EntityTickets, map[string]any{"id": ticketID, "status": status}); uerr != nil {
-			return nil, uerr
-		}
-		closed = true
+	closed, err := a.ensureJournalClosed(ctx, client, journal, rec, ticketID, closeTicket)
+	if err != nil {
+		return nil, err
+	}
+	if err := journal.complete(rec.Key); err != nil {
+		return nil, err
 	}
 
 	return &cmdResult{action: "time.add", data: TimeAddResult{
@@ -186,6 +197,22 @@ func (a *App) executeTimeAdd(createTicket map[string]any, entries []map[string]a
 		Closed:       closed,
 		Warnings:     warnings,
 	}}, nil
+}
+
+type timeAddJournalPayload struct {
+	CreateTicket map[string]any   `json:"createTicket,omitempty"`
+	Entries      []map[string]any `json:"entries"`
+	CloseTicket  bool             `json:"closeTicket"`
+}
+
+func completedEntryCount(ids []int64) int {
+	count := 0
+	for _, id := range ids {
+		if id != 0 {
+			count++
+		}
+	}
+	return count
 }
 
 // resolveWorkDay returns the worked day at midnight in loc, defaulting to today.

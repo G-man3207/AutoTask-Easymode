@@ -9,6 +9,7 @@
 package timer
 
 import (
+	"autotask-easymode/internal/atomicfile"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -79,11 +80,7 @@ func Load(path string) (*State, error) {
 
 // Save writes the state file with restrictive permissions.
 func (st *State) Save() error {
-	data, err := json.MarshalIndent(st, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(st.path, data, 0o600)
+	return atomicfile.WriteJSON(st.path, st, 0o600)
 }
 
 // Find returns the session with the given id, or nil.

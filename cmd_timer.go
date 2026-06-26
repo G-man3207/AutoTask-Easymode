@@ -284,6 +284,15 @@ func (a *App) cmdTimerStop(args []string) (*cmdResult, error) {
 // executeStop performs the Autotask writes for a timer stop and clears the
 // session. It is separated from flag handling to keep each function small.
 func (a *App) executeStop(s *timer.Session, timeEntry, createTicket map[string]any, closeTicket bool, hours float64) (*cmdResult, error) {
+	journal, rec, err := a.beginWriteOperation("timer.stop", timerStopJournalPayload{
+		SessionID:    s.ID,
+		CreateTicket: createTicket,
+		TimeEntry:    timeEntry,
+		CloseTicket:  closeTicket,
+	})
+	if err != nil {
+		return nil, err
+	}
 	ctx, cancel := cmdContext()
 	defer cancel()
 	client, err := a.newClient(ctx)
@@ -291,32 +300,34 @@ func (a *App) executeStop(s *timer.Session, timeEntry, createTicket map[string]a
 		return nil, err
 	}
 
-	ticketID := s.TicketID
-	if createTicket != nil {
-		id, cerr := client.Create(ctx, atapi.EntityTickets, createTicket)
-		if cerr != nil {
-			return nil, cerr
-		}
-		ticketID = id
-		timeEntry["ticketID"] = id
+	ticketID, err := a.ensureJournalTicket(ctx, client, journal, rec, s.TicketID, createTicket, false)
+	if err != nil {
+		return nil, err
+	}
+	timeEntry["ticketID"] = ticketID
+
+	rec.EntryIDs = ensureEntrySlots(rec.EntryIDs, 1)
+	if err := journal.touch(rec, a.now()); err != nil {
+		return nil, err
+	}
+	timeEntryID, err := a.ensureJournalTimeEntry(ctx, client, journal, rec, ticketID, 0, timeEntry)
+	if err != nil {
+		return nil, hinted(
+			"retry the same command; atem will resume from the local write journal and skip writes already completed",
+			"failed while logging timer time entry: %v", err,
+		)
 	}
 
-	timeEntryID, err := client.Create(ctx, atapi.EntityTimeEntries, timeEntry)
+	closed, err := a.ensureJournalClosed(ctx, client, journal, rec, ticketID, closeTicket)
 	if err != nil {
 		return nil, err
 	}
 
-	closed := false
-	if closeTicket {
-		status := defOr(a.cfg.Defaults.TicketStatusComplete, 5)
-		if _, uerr := client.Update(ctx, atapi.EntityTickets, map[string]any{"id": ticketID, "status": status}); uerr != nil {
-			return nil, uerr
-		}
-		closed = true
-	}
-
 	a.state.Remove(s.ID)
 	if err := a.state.Save(); err != nil {
+		return nil, err
+	}
+	if err := journal.complete(rec.Key); err != nil {
 		return nil, err
 	}
 	return &cmdResult{action: "timer.stop", data: TimerStopResult{
@@ -326,6 +337,13 @@ func (a *App) executeStop(s *timer.Session, timeEntry, createTicket map[string]a
 		Hours:       hours,
 		Closed:      closed,
 	}}, nil
+}
+
+type timerStopJournalPayload struct {
+	SessionID    string         `json:"sessionId"`
+	CreateTicket map[string]any `json:"createTicket,omitempty"`
+	TimeEntry    map[string]any `json:"timeEntry"`
+	CloseTicket  bool           `json:"closeTicket"`
 }
 
 // workdayEndHour anchors the end of a backdated work window so the derived

@@ -152,11 +152,12 @@ linters:
     generated: lax
     rules:
       # gosec: the only "variable URL" requests are to the configured Autotask
-      # zone (not user-tainted); the only "variable path" file reads are the
-      # app's own config/state files; and persisting the secret to the 0600
-      # config file is an opt-in (ATEM_SECRET is the recommended alternative).
+      # zone (not user-tainted); the only "variable path" file reads/tainted
+      # path reads are the app's own config/state/journal files; and persisting
+      # the secret to the 0600 config file is an opt-in (ATEM_SECRET is the
+      # recommended alternative).
       - linters: [gosec]
-        text: "(G107|G304|G117)"
+        text: "(G107|G304|G117|G703)"
       # The config UI opens the browser via a fixed OS launcher with our own
       # 127.0.0.1 URL (not user input).
       - linters: [gosec]

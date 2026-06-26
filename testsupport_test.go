@@ -36,6 +36,8 @@ type fakeClient struct {
 	updates []map[string]any
 	nextID  int64
 	failOn  string
+	failAt  map[string]int
+	counts  map[string]int
 
 	// searchCompany records the companyID passed to the last SearchTickets call,
 	// so tests can assert company-scoping (0 is a real company, not "all").
@@ -75,6 +77,13 @@ func (f *fakeClient) TimeEntriesForTickets(context.Context, []int64, string, str
 }
 
 func (f *fakeClient) Create(_ context.Context, entity string, fields map[string]any) (int64, error) {
+	if f.counts == nil {
+		f.counts = map[string]int{}
+	}
+	f.counts[entity]++
+	if n := f.failAt[entity]; n != 0 && f.counts[entity] == n {
+		return 0, errors.New("create failed")
+	}
 	if f.failOn == entity {
 		return 0, errors.New("create failed")
 	}
@@ -115,9 +124,10 @@ func newTestApp(t *testing.T, fc *fakeClient) *App {
 		t.Fatalf("load state: %v", err)
 	}
 	app := &App{
-		cfg:   cfg,
-		state: state,
-		now:   func() time.Time { return testNow },
+		cfg:     cfg,
+		state:   state,
+		now:     func() time.Time { return testNow },
+		journal: filepath.Join(dir, "write-journal.json"),
 	}
 	app.newClient = func(context.Context) (autotaskClient, error) {
 		if fc == nil {

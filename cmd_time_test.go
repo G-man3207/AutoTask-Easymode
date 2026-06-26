@@ -1,6 +1,7 @@
 package main
 
 import (
+	"autotask-easymode/internal/atapi"
 	"strings"
 	"testing"
 	"time"
@@ -210,6 +211,45 @@ func TestTimeAddCreatesEntriesAndCloses(t *testing.T) {
 	ids, ok := d["timeEntryIds"].([]any)
 	if !ok || len(ids) != 2 {
 		t.Errorf("timeEntryIds = %v", d["timeEntryIds"])
+	}
+}
+
+func TestTimeAddResumesPartialWriteFromJournal(t *testing.T) {
+	fc := &fakeClient{failAt: map[string]int{atapi.EntityTimeEntries: 2}}
+	app := newTestApp(t, fc)
+	app.cfg.ResourceID = 55
+	app.cfg.Defaults.QueueID = 8
+	args := []string{"--company", "0", "--date", "2026-06-15", "--windows", "11-12=A,13-15=B", "--desc", "project work", "--close"}
+
+	if _, err := app.cmdTimeAdd(args); err == nil {
+		t.Fatal("expected first attempt to fail on second time entry")
+	}
+	fc.failAt = nil
+
+	res, err := app.cmdTimeAdd(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ticketCreates, timeCreates int
+	for _, c := range fc.creates {
+		switch c.entity {
+		case atapi.EntityTickets:
+			ticketCreates++
+		case atapi.EntityTimeEntries:
+			timeCreates++
+		}
+	}
+	if ticketCreates != 1 {
+		t.Fatalf("ticket creates = %d want 1; creates=%+v", ticketCreates, fc.creates)
+	}
+	if timeCreates != 2 {
+		t.Fatalf("time entry creates = %d want 2; creates=%+v", timeCreates, fc.creates)
+	}
+	if len(fc.updates) != 1 {
+		t.Fatalf("close updates = %d want 1", len(fc.updates))
+	}
+	if dataMap(t, res)["closed"] != true {
+		t.Fatal("retry result should be closed")
 	}
 }
 

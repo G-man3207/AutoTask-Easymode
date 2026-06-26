@@ -38,6 +38,7 @@ type App struct {
 	state   *timer.State
 	now     func() time.Time
 	profile *TechnicianProfile
+	journal string
 
 	// newClient builds an Autotask client on demand (zone detection happens
 	// lazily and is cached). Tests override this with a fake.
@@ -93,7 +94,11 @@ func newApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	app := &App{cfg: cfg, state: state, now: time.Now}
+	journal, err := config.WriteJournalPath()
+	if err != nil {
+		return nil, err
+	}
+	app := &App{cfg: cfg, state: state, now: time.Now, journal: journal}
 	app.newClient = app.defaultClient
 	return app, nil
 }

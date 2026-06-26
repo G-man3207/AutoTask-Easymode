@@ -9,6 +9,7 @@
 package config
 
 import (
+	"autotask-easymode/internal/atomicfile"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -62,6 +63,9 @@ func Dir() (string, error) {
 // StatePath returns the path to the local timer state file.
 func StatePath() (string, error) { return joinDir("state.json") }
 
+// WriteJournalPath returns the path to the local Autotask write journal.
+func WriteJournalPath() (string, error) { return joinDir("write-journal.json") }
+
 // configPath returns the path to the config file.
 func configPath() (string, error) { return joinDir("config.json") }
 
@@ -114,14 +118,10 @@ func (c *Config) Save() error {
 		}
 		c.path = p
 	}
-	data, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
-		return err
-	}
 	if strings.TrimSpace(c.Secret) != "" {
 		_, _ = fmt.Fprintln(os.Stderr, "warning: storing Autotask secret in the config file; prefer ATEM_SECRET or Key Vault-backed environment injection")
 	}
-	return os.WriteFile(c.path, data, 0o600)
+	return atomicfile.WriteJSON(c.path, c, 0o600)
 }
 
 // Path returns the file this config is bound to.

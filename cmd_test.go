@@ -595,6 +595,45 @@ func TestTimerStopCreatesTicketWhenMissing(t *testing.T) {
 	}
 }
 
+func TestTimerStopResumesPartialWriteFromJournal(t *testing.T) {
+	fc := &fakeClient{failAt: map[string]int{atapi.EntityTimeEntries: 1}}
+	app := newTestApp(t, fc)
+	app.cfg.ResourceID = 55
+	app.cfg.Defaults.QueueID = 8
+	app.state.Start("a", 123, "A", testNow, false)
+
+	args := []string{"s1", "--hours", "1", "--note", "x"}
+	if _, err := app.cmdTimerStop(args); err == nil {
+		t.Fatal("expected first attempt to fail while logging time")
+	}
+	if len(app.state.Sessions) != 1 {
+		t.Fatal("failed stop should keep the session so retry can resume")
+	}
+	fc.failAt = nil
+
+	if _, err := app.cmdTimerStop(args); err != nil {
+		t.Fatal(err)
+	}
+	var ticketCreates, timeCreates int
+	for _, c := range fc.creates {
+		switch c.entity {
+		case atapi.EntityTickets:
+			ticketCreates++
+		case atapi.EntityTimeEntries:
+			timeCreates++
+		}
+	}
+	if ticketCreates != 1 {
+		t.Fatalf("ticket creates = %d want 1; creates=%+v", ticketCreates, fc.creates)
+	}
+	if timeCreates != 1 {
+		t.Fatalf("time entry creates = %d want 1; creates=%+v", timeCreates, fc.creates)
+	}
+	if len(app.state.Sessions) != 0 {
+		t.Fatal("successful retry should remove the session")
+	}
+}
+
 func TestTimerStopCreatesTicketForCompanyZero(t *testing.T) {
 	fc := &fakeClient{}
 	app := newTestApp(t, fc)
