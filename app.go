@@ -19,6 +19,7 @@ const envTimeZone = "ATEM_TIMEZONE"
 type autotaskClient interface {
 	SearchCompanies(ctx context.Context, q string, limit int) ([]map[string]any, error)
 	SearchContacts(ctx context.Context, q string, companyID, limit int) ([]map[string]any, error)
+	CreateContact(ctx context.Context, companyID int, fields map[string]any) (int64, error)
 	SearchResources(ctx context.Context, q string, limit int) ([]map[string]any, error)
 	SearchTickets(ctx context.Context, q string, companyID, limit int) ([]map[string]any, error)
 	TicketsForCompany(ctx context.Context, companyID, limit int) ([]map[string]any, error)

@@ -97,6 +97,29 @@ func TestContactCreateDryRun(t *testing.T) {
 	}
 }
 
+func TestContactCreateRealUsesCompanyContact(t *testing.T) {
+	fc := &fakeClient{}
+	app := newTestApp(t, fc)
+	res, err := app.cmdContactCreate([]string{
+		"--company", "7",
+		"--first-name", "Anna",
+		"--last-name", "Andersson",
+		"--email", "Anna Andersson <anna@example.com>",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fc.creates) != 1 || fc.creates[0].entity != "CompanyContacts" {
+		t.Fatalf("creates = %+v", fc.creates)
+	}
+	if asInt64(fc.creates[0].fields["companyID"]) != 7 || fc.creates[0].fields["emailAddress"] != "anna@example.com" {
+		t.Fatalf("fields = %+v", fc.creates[0].fields)
+	}
+	if asInt64(dataMap(t, res)["contactId"]) == 0 {
+		t.Fatal("expected contactId")
+	}
+}
+
 func TestContactCreateValidation(t *testing.T) {
 	app := newTestApp(t, nil)
 	if _, err := app.cmdContactCreate([]string{"--company", "7", "--first-name", "Anna", "--last-name", "Andersson", "--email", "bad", "--dry-run"}); err == nil {

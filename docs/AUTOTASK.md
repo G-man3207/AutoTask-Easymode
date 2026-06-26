@@ -67,8 +67,10 @@ When a customer person is known, atem can also set `Tickets.contactID` from
 `contact search`. This is the ticket's primary contact. `TicketAdditionalContacts`
 exists in Autotask for extra people, but atem intentionally starts with the
 primary contact only. Creating a new contact uses `Contacts` with `companyID`,
-`firstName`, `lastName`, `emailAddress`, and `isActive = 1`; the agent should do
-that only after confirming the person is not already present.
+`firstName`, `lastName`, `emailAddress`, and `isActive = 1`; the write goes
+through the `Companies/{companyID}/Contacts` child collection because Autotask
+parents contact writes by company. The agent should do that only after
+confirming the person is not already present.
 
 **Logging time on a (service) ticket** requires:
 

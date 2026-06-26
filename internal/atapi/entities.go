@@ -3,6 +3,7 @@ package atapi
 import (
 	"context"
 	"net/http"
+	"strconv"
 )
 
 // Entity name constants used across the app.
@@ -72,6 +73,17 @@ func (c *Client) SearchContacts(ctx context.Context, q string, companyID, limit 
 			{Op: "contains", Field: "emailAddress", Value: q},
 		}},
 	}, limit)
+}
+
+// CreateContact creates a contact through the Companies/{id}/Contacts child
+// collection. Contacts can be queried at the root Contacts endpoint, but writes
+// are parented by company in the Autotask REST API.
+func (c *Client) CreateContact(ctx context.Context, companyID int, fields map[string]any) (int64, error) {
+	var r writeResponse
+	if err := c.do(ctx, http.MethodPost, c.entityURL(EntityCompanies, strconv.Itoa(companyID), EntityContacts), fields, &r); err != nil {
+		return 0, err
+	}
+	return r.ItemID, nil
 }
 
 // SearchResources finds resources matching q against first name, last name, or

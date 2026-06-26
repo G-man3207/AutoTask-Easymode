@@ -50,6 +50,13 @@ func (f *fakeClient) SearchContacts(context.Context, string, int, int) ([]map[st
 	return f.contacts, nil
 }
 
+func (f *fakeClient) CreateContact(ctx context.Context, companyID int, fields map[string]any) (int64, error) {
+	if _, ok := fields["companyID"]; !ok {
+		fields["companyID"] = companyID
+	}
+	return f.Create(ctx, "CompanyContacts", fields)
+}
+
 func (f *fakeClient) SearchResources(context.Context, string, int) ([]map[string]any, error) {
 	return f.resources, nil
 }

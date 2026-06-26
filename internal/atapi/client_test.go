@@ -185,6 +185,37 @@ func TestSearchContactsBuildsCompanyActiveNameEmailFilter(t *testing.T) {
 	}
 }
 
+func TestCreateContactUsesCompanyChildPath(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s", r.Method)
+		}
+		if !strings.Contains(r.URL.Path, "/Companies/7/Contacts") {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		for _, want := range []string{`"companyID":7`, `"firstName":"Anna"`, `"emailAddress":"anna@example.com"`} {
+			if !strings.Contains(string(body), want) {
+				t.Errorf("body missing %s: %s", want, body)
+			}
+		}
+		_, _ = io.WriteString(w, `{"itemId":9}`)
+	})
+	id, err := c.CreateContact(context.Background(), 7, map[string]any{
+		"companyID":    7,
+		"firstName":    "Anna",
+		"lastName":     "Andersson",
+		"emailAddress": "anna@example.com",
+		"isActive":     1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != 9 {
+		t.Fatalf("id = %d", id)
+	}
+}
+
 func TestTimeEntriesForTicketsBuildsFilters(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)

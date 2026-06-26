@@ -1,7 +1,6 @@
 package main
 
 import (
-	"autotask-easymode/internal/atapi"
 	"net/mail"
 	"strings"
 )
@@ -94,7 +93,7 @@ func (a *App) cmdContactCreate(args []string) (*cmdResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	id, err := client.Create(ctx, atapi.EntityContacts, fields)
+	id, err := client.CreateContact(ctx, companyID, fields)
 	if err != nil {
 		return nil, err
 	}
