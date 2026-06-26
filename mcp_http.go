@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"flag"
 	"io"
 	"log"
 	"net"
@@ -37,6 +38,7 @@ func (a *App) serveHTTPCommand(args []string) int {
 		}
 		return 1
 	}
+	audiences := effectiveEntraAudiences(*audience, os.Getenv("ATEM_ENTRA_AUDIENCES"), flagWasSet(fs, "audience"))
 	surface, err := mcpSurfaceByName(*toolset)
 	if err != nil {
 		if !emitJSON(os.Stdout, os.Stderr, resultFromError(err)) {
@@ -47,7 +49,7 @@ func (a *App) serveHTTPCommand(args []string) int {
 	authn, err := newMCPAuthenticator(authOptions{
 		Mode:        *authMode,
 		TenantID:    *tenantID,
-		Audiences:   splitCSV(firstNonEmptyString(envDefault("ATEM_ENTRA_AUDIENCES", ""), *audience)),
+		Audiences:   audiences,
 		MetadataURL: *metadataURL,
 		Profiles:    os.Getenv("ATEM_AUTH_PROFILES"),
 		ProfileFile: *profileFile,
@@ -77,6 +79,23 @@ func envDefault(name, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func flagWasSet(fs *flag.FlagSet, name string) bool {
+	found := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
+}
+
+func effectiveEntraAudiences(audienceFlag, audiencesEnv string, flagExplicit bool) []string {
+	if flagExplicit || strings.TrimSpace(audiencesEnv) == "" {
+		return splitCSV(audienceFlag)
+	}
+	return splitCSV(audiencesEnv)
 }
 
 func envBool(name string) bool {

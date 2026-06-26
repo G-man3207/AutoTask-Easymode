@@ -403,12 +403,3 @@ func splitCSV(s string) []string {
 	}
 	return out
 }
-
-func firstNonEmptyString(vals ...string) string {
-	for _, v := range vals {
-		if strings.TrimSpace(v) != "" {
-			return v
-		}
-	}
-	return ""
-}

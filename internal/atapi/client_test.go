@@ -75,6 +75,35 @@ func TestQueryPaginationAndAuthHeaders(t *testing.T) {
 	}
 }
 
+func TestQueryRejectsPaginationURLOutsideBase(t *testing.T) {
+	calls := 0
+	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		_, _ = io.WriteString(w, `{"items":[{"id":1}],"pageDetails":{"nextPageUrl":"https://example.invalid/v1.0/Companies/query?cursor=2"}}`)
+	})
+
+	_, err := c.Query(context.Background(), "Companies", []Filter{{Op: "exist", Field: "id"}}, 0)
+	if err == nil || !strings.Contains(err.Error(), "does not match Autotask host") {
+		t.Fatalf("error = %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("calls = %d want 1", calls)
+	}
+}
+
+func TestQueryRejectsPaginationURLOutsideAPIPath(t *testing.T) {
+	var base string
+	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"items":[{"id":1}],"pageDetails":{"nextPageUrl":"`+base+`/elsewhere/query?cursor=2"}}`)
+	})
+	base = strings.TrimRight(c.base, "/")
+
+	_, err := c.Query(context.Background(), "Companies", []Filter{{Op: "exist", Field: "id"}}, 0)
+	if err == nil || !strings.Contains(err.Error(), "outside Autotask API path") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestQueryRetriesTransientRead(t *testing.T) {
 	calls := 0
 	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {

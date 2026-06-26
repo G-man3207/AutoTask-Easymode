@@ -121,8 +121,12 @@ func (c *Client) Query(ctx context.Context, entity string, filter []Filter, limi
 	all = append(all, resp.Items...)
 	next := resp.PageDetails.NextPageURL
 	for next != "" && (limit <= 0 || len(all) < limit) {
+		nextURL, err := c.validatedPaginationURL(next)
+		if err != nil {
+			return nil, err
+		}
 		var page queryResponse
-		if err := c.do(ctx, http.MethodGet, next, nil, &page); err != nil {
+		if err := c.do(ctx, http.MethodGet, nextURL, nil, &page); err != nil {
 			return nil, err
 		}
 		all = append(all, page.Items...)
@@ -170,6 +174,29 @@ func (c *Client) GetByID(ctx context.Context, entity string, id int64) (map[stri
 func (c *Client) entityURL(entity string, suffix ...string) string {
 	parts := append([]string{strings.TrimRight(c.base, "/"), "v1.0", entity}, suffix...)
 	return strings.Join(parts, "/")
+}
+
+func (c *Client) validatedPaginationURL(next string) (string, error) {
+	u, err := url.Parse(next)
+	if err != nil {
+		return "", fmt.Errorf("parse pagination URL: %w", err)
+	}
+	if !u.IsAbs() || u.User != nil {
+		return "", errors.New("pagination URL must be absolute and must not include user info")
+	}
+	base, err := url.Parse(c.entityURL(""))
+	if err != nil {
+		return "", fmt.Errorf("parse Autotask base URL: %w", err)
+	}
+	if !strings.EqualFold(u.Scheme, base.Scheme) || !strings.EqualFold(u.Host, base.Host) {
+		return "", fmt.Errorf("pagination URL host %q does not match Autotask host %q", u.Host, base.Host)
+	}
+	basePath := strings.TrimRight(base.EscapedPath(), "/") + "/"
+	nextPath := strings.TrimRight(u.EscapedPath(), "/") + "/"
+	if !strings.HasPrefix(nextPath, basePath) {
+		return "", fmt.Errorf("pagination URL path %q is outside Autotask API path %q", u.EscapedPath(), base.EscapedPath())
+	}
+	return u.String(), nil
 }
 
 // do executes a request with auth headers and decodes a JSON response into out.

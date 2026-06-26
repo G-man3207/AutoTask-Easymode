@@ -1,16 +1,21 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	_ "embed" // for go:embed of ui.html
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -20,6 +25,8 @@ var uiHTML []byte
 const (
 	defaultUIPort       = 7378
 	uiReadHeaderTimeout = 5 * time.Second
+	uiCSRFHeader        = "X-Atem-Csrf"
+	uiCSRFPlaceholder   = "__ATEM_CSRF_TOKEN__"
 )
 
 // uiConfig mirrors the editable configuration fields for the local web panel.
@@ -72,6 +79,13 @@ func (a *App) cmdUI(args []string) (*cmdResult, error) {
 // uiHandler wires the panel's routes. Split out so handlers are testable without
 // binding a socket.
 func (a *App) uiHandler() http.Handler {
+	token, err := newUICSRFToken()
+	if err != nil {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "failed to initialize UI security token", http.StatusInternalServerError)
+		})
+	}
+	ui := &uiServer{app: a, csrfToken: token}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -79,25 +93,84 @@ func (a *App) uiHandler() http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(uiHTML)
+		_, _ = w.Write(bytes.ReplaceAll(uiHTML, []byte(uiCSRFPlaceholder), []byte(token)))
 	})
-	mux.HandleFunc("/api/config", a.handleConfig)
-	mux.HandleFunc("/api/doctor", a.handleDoctor)
-	return mux
+	mux.HandleFunc("/api/config", ui.handleConfig)
+	mux.HandleFunc("/api/doctor", ui.handleDoctor)
+	return ui.secure(mux)
 }
 
-func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
+type uiServer struct {
+	app       *App
+	csrfToken string
+}
+
+func newUICSRFToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func (s *uiServer) secure(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isLoopbackHost(r.Host) {
+			http.Error(w, "invalid local UI host", http.StatusForbidden)
+			return
+		}
+		if r.Method == http.MethodPost && !s.allowedPost(r) {
+			http.Error(w, "invalid local UI request", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *uiServer) allowedPost(r *http.Request) bool {
+	if r.Header.Get(uiCSRFHeader) != s.csrfToken {
+		return false
+	}
+	return sameOriginHeader(r.Header.Get("Origin"), r.Host) &&
+		sameOriginHeader(r.Header.Get("Referer"), r.Host)
+}
+
+func sameOriginHeader(raw, host string) bool {
+	if strings.TrimSpace(raw) == "" {
+		return true
+	}
+	u, err := neturl.Parse(raw)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	return strings.EqualFold(u.Scheme, "http") && strings.EqualFold(u.Host, host)
+}
+
+func isLoopbackHost(host string) bool {
+	h, _, err := net.SplitHostPort(host)
+	if err != nil {
+		h = host
+	}
+	h = strings.Trim(strings.TrimSpace(h), "[]")
+	if strings.EqualFold(h, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
+}
+
+func (s *uiServer) handleConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		writeJSONObject(w, a.uiConfigFromCfg())
+		writeJSONObject(w, s.app.uiConfigFromCfg())
 	case http.MethodPost:
 		var uc uiConfig
 		if err := json.NewDecoder(r.Body).Decode(&uc); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		a.applyUIConfig(uc)
-		if err := a.cfg.Save(); err != nil {
+		s.app.applyUIConfig(uc)
+		if err := s.app.cfg.Save(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -107,12 +180,12 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *App) handleDoctor(w http.ResponseWriter, r *http.Request) {
+func (s *uiServer) handleDoctor(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	writeJSONObject(w, a.doctorReport(r.Context()))
+	writeJSONObject(w, s.app.doctorReport(r.Context()))
 }
 
 // uiConfigFromCfg builds the editable view from the on-disk config (raw file

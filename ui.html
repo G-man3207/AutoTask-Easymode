@@ -80,6 +80,7 @@
   </div>
 </div>
 <script>
+const csrfToken = "__ATEM_CSRF_TOKEN__";
 const $ = id => document.getElementById(id);
 const fields = ["username","integrationCode","secret","apiBaseUrl","resourceId","queueId","priority","ticketStatusNew","ticketStatusComplete","billingCodeId","roleId","flagHoursOver","flagNotesUnder","flagHoursAlways"];
 const numeric = new Set(["resourceId","queueId","priority","ticketStatusNew","ticketStatusComplete","billingCodeId","roleId","flagHoursOver","flagNotesUnder","flagHoursAlways"]);
@@ -100,7 +101,7 @@ function collect(){
 }
 
 async function save(){
-  const r = await fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(collect())});
+  const r = await fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json","X-Atem-Csrf":csrfToken},body:JSON.stringify(collect())});
   msg(r.ok?"Saved ✓":"Save failed", r.ok?"ok":"err");
   return r.ok;
 }
@@ -114,7 +115,7 @@ async function verify(){
   msg("Verifying…","muted");
   if(!(await save())) return;
   let d;
-  try{ d = await (await fetch("/api/doctor",{method:"POST"})).json(); }
+  try{ d = await (await fetch("/api/doctor",{method:"POST",headers:{"X-Atem-Csrf":csrfToken}})).json(); }
   catch(e){ msg("Verify failed","err"); return; }
   $("verifyCard").style.display="block";
   const creds=d.credentials||{}, zone=d.zone||{}, p=d.picklists||{};

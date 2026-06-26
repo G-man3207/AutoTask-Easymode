@@ -458,6 +458,18 @@ func TestValidateHTTPAuthExposure(t *testing.T) {
 	}
 }
 
+func TestEffectiveEntraAudiencesFlagBeatsEnvList(t *testing.T) {
+	got := effectiveEntraAudiences("api://flag", "api://env-one,api://env-two", true)
+	if len(got) != 1 || got[0] != "api://flag" {
+		t.Fatalf("explicit flag should win, got %v", got)
+	}
+
+	got = effectiveEntraAudiences("api://single-env", "api://env-one,api://env-two", false)
+	if len(got) != 2 || got[0] != "api://env-one" || got[1] != "api://env-two" {
+		t.Fatalf("env audience list should win without explicit flag, got %v", got)
+	}
+}
+
 func TestMCPPrompts(t *testing.T) {
 	app := newTestApp(t, &fakeClient{})
 
