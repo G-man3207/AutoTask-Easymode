@@ -127,7 +127,7 @@ func validateTicketContact(ctx context.Context, client autotaskClient, companyID
 			contactID, contactCompanyID, companyID,
 		)
 	}
-	if active, ok := contact["isActive"]; ok && !contactActive(active) {
+	if active, ok := contact["isActive"]; ok && !asBool(active) {
 		return hinted(
 			"ask the user for a different active contact, or omit --contact if no active person is known",
 			"contact %d is not active",
@@ -143,24 +143,6 @@ func validateCreateTicketContact(ctx context.Context, client autotaskClient, fie
 		return nil
 	}
 	return validateTicketContact(ctx, client, int(asInt64(fields["companyID"])), contactID)
-}
-
-func contactActive(v any) bool {
-	switch x := v.(type) {
-	case bool:
-		return x
-	case int:
-		return x != 0
-	case int64:
-		return x != 0
-	case float64:
-		return x != 0
-	case string:
-		s := strings.TrimSpace(strings.ToLower(x))
-		return s == "1" || s == "true" || s == "yes"
-	default:
-		return false
-	}
 }
 
 func (a *App) cmdTicketIssueTypes(args []string) (*cmdResult, error) {

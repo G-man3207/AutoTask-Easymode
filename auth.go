@@ -2,14 +2,9 @@ package main
 
 import (
 	"context"
-	"crypto"
-	"crypto/rsa"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"net"
 	"net/http"
 	"net/url"
@@ -18,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/coreos/go-oidc/v3/oidc"
 )
 
 const defaultEntraAuthority = "https://login.microsoftonline.com"
@@ -225,10 +222,8 @@ type entraValidator struct {
 	now         func() time.Time
 	httpClient  *http.Client
 
-	mu     sync.Mutex
-	issuer string
-	keys   map[string]*rsa.PublicKey
-	expiry time.Time
+	mu       sync.Mutex
+	verifier *oidc.IDTokenVerifier
 }
 
 func newEntraValidator(tenantID string, audiences []string, metadataURL string) *entraValidator {
@@ -242,24 +237,20 @@ func newEntraValidator(tenantID string, audiences []string, metadataURL string) 
 }
 
 func (v *entraValidator) Validate(ctx context.Context, token string) (*authIdentity, error) {
-	header, claims, signingInput, sig, err := parseJWT(token)
+	verifier, err := v.tokenVerifier(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if header.Alg != "RS256" {
-		return nil, fmt.Errorf("unsupported token algorithm %q", header.Alg)
-	}
-	keyID := firstNonEmptyString(header.KID, header.X5T)
-	if keyID == "" {
-		return nil, errors.New("token has no key id")
-	}
-	key, err := v.publicKey(ctx, keyID)
+	idToken, err := verifier.Verify(oidc.ClientContext(ctx, v.httpClient), token)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid token: %w", err)
 	}
-	hash := sha256.Sum256([]byte(signingInput))
-	if err := rsa.VerifyPKCS1v15(key, crypto.SHA256, hash[:], sig); err != nil {
-		return nil, errors.New("invalid token signature")
+	if !hasAllowedAudience(idToken.Audience, v.audiences) {
+		return nil, errors.New("token audience does not match atem")
+	}
+	var claims entraClaims
+	if err := idToken.Claims(&claims); err != nil {
+		return nil, fmt.Errorf("decode token claims: %w", err)
 	}
 	if err := v.validateClaims(claims); err != nil {
 		return nil, err
@@ -273,83 +264,56 @@ func (v *entraValidator) Validate(ctx context.Context, token string) (*authIdent
 	return id, nil
 }
 
-func (v *entraValidator) validateClaims(claims jwtClaims) error {
-	now := v.now().Unix()
-	if claims.ExpiresAt <= now {
-		return errors.New("token has expired")
+func (v *entraValidator) tokenVerifier(ctx context.Context) (*oidc.IDTokenVerifier, error) {
+	v.mu.Lock()
+	cached := v.verifier
+	v.mu.Unlock()
+	if cached != nil {
+		return cached, nil
 	}
-	if claims.NotBefore != 0 && claims.NotBefore > now+60 {
-		return errors.New("token is not valid yet")
+	verifier, err := v.buildVerifier(ctx)
+	if err != nil {
+		return nil, err
 	}
+	v.mu.Lock()
+	if v.verifier == nil {
+		v.verifier = verifier
+	}
+	cached = v.verifier
+	v.mu.Unlock()
+	return cached, nil
+}
+
+func (v *entraValidator) buildVerifier(ctx context.Context) (*oidc.IDTokenVerifier, error) {
+	metadataURL := v.metadataURL
+	if metadataURL == "" {
+		metadataURL = defaultEntraAuthority + "/" + v.tenantID + "/v2.0/.well-known/openid-configuration"
+	}
+	var meta oidcMetadata
+	if err := getJSON(ctx, v.httpClient, metadataURL, &meta); err != nil {
+		return nil, fmt.Errorf("fetch Entra metadata: %w", err)
+	}
+	if meta.Issuer == "" || meta.JWKSURI == "" {
+		return nil, errors.New("entra metadata missing issuer or jwks_uri")
+	}
+	if err := validateFetchURL(meta.JWKSURI); err != nil {
+		return nil, fmt.Errorf("validate Entra signing keys URL: %w", err)
+	}
+	keySet := oidc.NewRemoteKeySet(oidc.ClientContext(ctx, v.httpClient), meta.JWKSURI)
+	return oidc.NewVerifier(meta.Issuer, keySet, &oidc.Config{
+		SkipClientIDCheck:    true,
+		SupportedSigningAlgs: []string{"RS256"},
+		Now:                  v.now,
+	}), nil
+}
+
+func (v *entraValidator) validateClaims(claims entraClaims) error {
 	if !strings.EqualFold(claims.TenantID, v.tenantID) {
 		return errors.New("token was issued by an unexpected tenant")
 	}
 	if claims.ObjectID == "" {
 		return errors.New("token has no object id")
 	}
-	if !claims.hasAudience(v.audiences) {
-		return errors.New("token audience does not match atem")
-	}
-	v.mu.Lock()
-	issuer := v.issuer
-	v.mu.Unlock()
-	if issuer != "" && claims.Issuer != issuer {
-		return errors.New("token issuer does not match Entra metadata")
-	}
-	return nil
-}
-
-func (v *entraValidator) publicKey(ctx context.Context, kid string) (*rsa.PublicKey, error) {
-	if key, ok := v.cachedKey(kid); ok {
-		return key, nil
-	}
-	if err := v.refresh(ctx); err != nil {
-		return nil, err
-	}
-	if key, ok := v.cachedKey(kid); ok {
-		return key, nil
-	}
-	return nil, errors.New("token signing key is unknown")
-}
-
-func (v *entraValidator) cachedKey(kid string) (*rsa.PublicKey, bool) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if v.keys == nil || v.now().After(v.expiry) {
-		return nil, false
-	}
-	key, ok := v.keys[kid]
-	return key, ok
-}
-
-func (v *entraValidator) refresh(ctx context.Context) error {
-	metadataURL := v.metadataURL
-	if metadataURL == "" {
-		metadataURL = defaultEntraAuthority + "/" + v.tenantID + "/v2.0/.well-known/openid-configuration"
-	}
-	var meta struct {
-		Issuer  string `json:"issuer"`
-		JWKSURI string `json:"jwks_uri"`
-	}
-	if err := getJSON(ctx, v.httpClient, metadataURL, &meta); err != nil {
-		return fmt.Errorf("fetch Entra metadata: %w", err)
-	}
-	if meta.Issuer == "" || meta.JWKSURI == "" {
-		return errors.New("entra metadata missing issuer or jwks_uri")
-	}
-	var jwks jwksDocument
-	if err := getJSON(ctx, v.httpClient, meta.JWKSURI, &jwks); err != nil {
-		return fmt.Errorf("fetch Entra signing keys: %w", err)
-	}
-	keys, err := jwks.rsaKeys()
-	if err != nil {
-		return err
-	}
-	v.mu.Lock()
-	v.issuer = meta.Issuer
-	v.keys = keys
-	v.expiry = v.now().Add(24 * time.Hour)
-	v.mu.Unlock()
 	return nil
 }
 
@@ -395,118 +359,39 @@ func validateFetchURL(raw string) error {
 	return errors.New("oidc URL must use https")
 }
 
-type jwtHeader struct {
-	Alg string `json:"alg"`
-	KID string `json:"kid"`
-	X5T string `json:"x5t"`
+type oidcMetadata struct {
+	Issuer  string `json:"issuer"`
+	JWKSURI string `json:"jwks_uri"`
 }
 
-type jwtClaims struct {
-	Issuer            string `json:"iss"`
+type entraClaims struct {
 	TenantID          string `json:"tid"`
 	ObjectID          string `json:"oid"`
 	PreferredUsername string `json:"preferred_username"`
 	UPN               string `json:"upn"`
 	Email             string `json:"email"`
-	ExpiresAt         int64  `json:"exp"`
-	NotBefore         int64  `json:"nbf"`
-	Audience          any    `json:"aud"`
 }
 
-func (c jwtClaims) hasAudience(allowed []string) bool {
-	switch aud := c.Audience.(type) {
-	case string:
-		return slices.Contains(allowed, aud)
-	case []any:
-		for _, item := range aud {
-			if s, ok := item.(string); ok && slices.Contains(allowed, s) {
-				return true
-			}
+func (c *entraClaims) UnmarshalJSON(data []byte) error {
+	type alias entraClaims
+	var out alias
+	if err := json.Unmarshal(data, &out); err != nil {
+		return err
+	}
+	if out.Email == "" {
+		out.Email = out.UPN
+	}
+	*c = entraClaims(out)
+	return nil
+}
+
+func hasAllowedAudience(tokenAudiences, allowed []string) bool {
+	for _, aud := range tokenAudiences {
+		if slices.Contains(allowed, aud) {
+			return true
 		}
 	}
 	return false
-}
-
-func parseJWT(token string) (jwtHeader, jwtClaims, string, []byte, error) {
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		return jwtHeader{}, jwtClaims{}, "", nil, errors.New("token is not a JWT")
-	}
-	headerBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
-	if err != nil {
-		return jwtHeader{}, jwtClaims{}, "", nil, errors.New("invalid token header")
-	}
-	claimBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return jwtHeader{}, jwtClaims{}, "", nil, errors.New("invalid token claims")
-	}
-	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
-	if err != nil {
-		return jwtHeader{}, jwtClaims{}, "", nil, errors.New("invalid token signature")
-	}
-	var header jwtHeader
-	if err := json.Unmarshal(headerBytes, &header); err != nil {
-		return jwtHeader{}, jwtClaims{}, "", nil, errors.New("invalid token header JSON")
-	}
-	var claims jwtClaims
-	if err := json.Unmarshal(claimBytes, &claims); err != nil {
-		return jwtHeader{}, jwtClaims{}, "", nil, errors.New("invalid token claims JSON")
-	}
-	if claims.Email == "" {
-		claims.Email = claims.UPN
-	}
-	return header, claims, parts[0] + "." + parts[1], sig, nil
-}
-
-type jwksDocument struct {
-	Keys []jwkKey `json:"keys"`
-}
-
-type jwkKey struct {
-	KID string `json:"kid"`
-	X5T string `json:"x5t"`
-	KTY string `json:"kty"`
-	N   string `json:"n"`
-	E   string `json:"e"`
-}
-
-func (d jwksDocument) rsaKeys() (map[string]*rsa.PublicKey, error) {
-	out := map[string]*rsa.PublicKey{}
-	for _, k := range d.Keys {
-		if k.KTY != "RSA" || k.N == "" || k.E == "" {
-			continue
-		}
-		pub, err := k.rsaPublicKey()
-		if err != nil {
-			return nil, err
-		}
-		if k.KID != "" {
-			out[k.KID] = pub
-		}
-		if k.X5T != "" {
-			out[k.X5T] = pub
-		}
-	}
-	if len(out) == 0 {
-		return nil, errors.New("entra JWKS has no RSA signing keys")
-	}
-	return out, nil
-}
-
-func (k jwkKey) rsaPublicKey() (*rsa.PublicKey, error) {
-	nBytes, err := base64.RawURLEncoding.DecodeString(k.N)
-	if err != nil {
-		return nil, errors.New("invalid RSA modulus in JWKS")
-	}
-	eBytes, err := base64.RawURLEncoding.DecodeString(k.E)
-	if err != nil {
-		return nil, errors.New("invalid RSA exponent in JWKS")
-	}
-	e := new(big.Int).SetBytes(eBytes).Int64()
-	if e <= 1 {
-		return nil, errors.New("invalid RSA exponent value in JWKS")
-	}
-	return &rsa.PublicKey{N: new(big.Int).SetBytes(nBytes), E: int(e)}, nil
 }
 
 func splitCSV(s string) []string {

@@ -75,6 +75,49 @@ func TestQueryPaginationAndAuthHeaders(t *testing.T) {
 	}
 }
 
+func TestQueryRetriesTransientRead(t *testing.T) {
+	calls := 0
+	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls == 1 {
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = io.WriteString(w, `{"errors":["try again"]}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"items":[{"id":1}],"pageDetails":{"nextPageUrl":""}}`)
+	})
+
+	items, err := c.Query(context.Background(), "Companies", []Filter{{Op: "exist", Field: "id"}}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d want 2", calls)
+	}
+	if len(items) != 1 {
+		t.Fatalf("items = %d want 1", len(items))
+	}
+}
+
+func TestCreateDoesNotRetryTransientWrite(t *testing.T) {
+	calls := 0
+	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.Header().Set("Retry-After", "0")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = io.WriteString(w, `{"errors":["not yet"]}`)
+	})
+
+	_, err := c.Create(context.Background(), "Tickets", map[string]any{"title": "hello"})
+	if err == nil {
+		t.Fatal("expected transient write error")
+	}
+	if calls != 1 {
+		t.Fatalf("calls = %d want 1", calls)
+	}
+}
+
 func TestQueryLimit(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, `{"items":[{"id":1},{"id":2},{"id":3}],"pageDetails":{"nextPageUrl":""}}`)

@@ -24,6 +24,8 @@ const zoneDetectURL = "https://webservices.autotask.net/ATServicesRest/v1.0/zone
 // maxPageSize is Autotask's per-page query cap.
 const maxPageSize = 500
 
+var zoneDetectHTTPClient = &http.Client{Timeout: 60 * time.Second}
+
 // Client talks to a single Autotask zone with a fixed set of credentials.
 type Client struct {
 	httpc           *http.Client
@@ -58,12 +60,15 @@ func detectZone(ctx context.Context, endpoint, username string) (string, error) 
 		return "", err
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := zoneDetectHTTPClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("zone detection: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	data, _ := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("zone detection: read response: %w", err)
+	}
 	if resp.StatusCode >= 400 {
 		return "", fmt.Errorf("zone detection failed (%d): %s", resp.StatusCode, apiError(data))
 	}
@@ -170,40 +175,134 @@ func (c *Client) entityURL(entity string, suffix ...string) string {
 // do executes a request with auth headers and decodes a JSON response into out.
 // fullURL may be an entity URL or an absolute pagination URL.
 func (c *Client) do(ctx context.Context, method, fullURL string, body, out any) error {
-	var rdr io.Reader
+	payload, err := encodeBody(body)
+	if err != nil {
+		return err
+	}
+	tries := 1
+	if retryableRead(method, fullURL) {
+		tries += len(readRetryBackoffs)
+	}
+	var lastErr error
+	for attempt := range tries {
+		retry, delay, err := c.doOnce(ctx, method, fullURL, payload, body != nil, out, attempt)
+		if !retry {
+			return err
+		}
+		lastErr = err
+		if attempt == tries-1 {
+			break
+		}
+		if err := sleepContext(ctx, delay); err != nil {
+			return err
+		}
+	}
+	return lastErr
+}
+
+func encodeBody(body any) ([]byte, error) {
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		rdr = bytes.NewReader(b)
+		return b, nil
+	}
+	return nil, nil
+}
+
+func (c *Client) doOnce(ctx context.Context, method, fullURL string, payload []byte, hasBody bool, out any, attempt int) (bool, time.Duration, error) {
+	var rdr io.Reader
+	if hasBody {
+		rdr = bytes.NewReader(payload)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, fullURL, rdr)
 	if err != nil {
-		return err
+		return false, 0, err
 	}
 	req.Header.Set("ApiIntegrationCode", c.integrationCode)
 	req.Header.Set("UserName", c.username)
 	req.Header.Set("Secret", c.secret)
 	req.Header.Set("Accept", "application/json")
-	if body != nil {
+	if hasBody {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	resp, err := c.httpc.Do(req)
 	if err != nil {
-		return err
+		if ctx.Err() == nil {
+			return true, readRetryBackoff(attempt), err
+		}
+		return false, 0, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	data, _ := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, 0, fmt.Errorf("read response: %w", err)
+	}
+	if transientStatus(resp.StatusCode) {
+		return true, retryDelay(resp, attempt), fmt.Errorf("autotask %s %s -> %d: %s", method, trimURL(fullURL), resp.StatusCode, apiError(data))
+	}
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("autotask %s %s -> %d: %s", method, trimURL(fullURL), resp.StatusCode, apiError(data))
+		return false, 0, fmt.Errorf("autotask %s %s -> %d: %s", method, trimURL(fullURL), resp.StatusCode, apiError(data))
 	}
 	if out != nil && len(data) > 0 {
 		if err := json.Unmarshal(data, out); err != nil {
-			return fmt.Errorf("decode response: %w", err)
+			return false, 0, fmt.Errorf("decode response: %w", err)
 		}
 	}
-	return nil
+	return false, 0, nil
+}
+
+var readRetryBackoffs = []time.Duration{250 * time.Millisecond, 500 * time.Millisecond, time.Second}
+
+func retryableRead(method, fullURL string) bool {
+	if method == http.MethodGet {
+		return true
+	}
+	path := strings.TrimRight(trimURL(fullURL), "/")
+	return method == http.MethodPost && strings.HasSuffix(path, "/query")
+}
+
+func transientStatus(status int) bool {
+	return status == http.StatusTooManyRequests ||
+		status == http.StatusBadGateway ||
+		status == http.StatusServiceUnavailable ||
+		status == http.StatusGatewayTimeout
+}
+
+func retryDelay(resp *http.Response, attempt int) time.Duration {
+	if v := strings.TrimSpace(resp.Header.Get("Retry-After")); v != "" {
+		if seconds, err := strconv.Atoi(v); err == nil && seconds >= 0 {
+			return time.Duration(seconds) * time.Second
+		}
+		if when, err := http.ParseTime(v); err == nil {
+			if delay := time.Until(when); delay > 0 {
+				return delay
+			}
+		}
+	}
+	return readRetryBackoff(attempt)
+}
+
+func readRetryBackoff(attempt int) time.Duration {
+	if attempt < len(readRetryBackoffs) {
+		return readRetryBackoffs[attempt]
+	}
+	return readRetryBackoffs[len(readRetryBackoffs)-1]
+}
+
+func sleepContext(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // apiError pulls human-readable messages out of an Autotask error body.

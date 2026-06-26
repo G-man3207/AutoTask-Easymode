@@ -118,6 +118,9 @@ func (c *Config) Save() error {
 	if err != nil {
 		return err
 	}
+	if strings.TrimSpace(c.Secret) != "" {
+		_, _ = fmt.Fprintln(os.Stderr, "warning: storing Autotask secret in the config file; prefer ATEM_SECRET or Key Vault-backed environment injection")
+	}
 	return os.WriteFile(c.path, data, 0o600)
 }
 

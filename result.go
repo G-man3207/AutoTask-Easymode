@@ -57,3 +57,11 @@ func writeJSON(w io.Writer, r Result) error {
 	enc.SetEscapeHTML(false)
 	return enc.Encode(r)
 }
+
+func emitJSON(w, errw io.Writer, r Result) bool {
+	if err := writeJSON(w, r); err != nil {
+		_, _ = fmt.Fprintf(errw, "failed to write result JSON: %v\n", err)
+		return false
+	}
+	return true
+}

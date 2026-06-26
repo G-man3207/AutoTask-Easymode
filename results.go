@@ -34,7 +34,7 @@ type SessionView struct {
 type CompanyHit struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`
-	IsActive any    `json:"isActive"`
+	IsActive bool   `json:"isActive"`
 }
 
 type CompanySearchResult struct {
@@ -56,7 +56,7 @@ type ContactHit struct {
 	Email       string `json:"email"`
 	Phone       string `json:"phone"`
 	MobilePhone string `json:"mobilePhone"`
-	IsActive    any    `json:"isActive"`
+	IsActive    bool   `json:"isActive"`
 }
 
 type ContactSearchResult struct {
@@ -82,7 +82,7 @@ type ResourceHit struct {
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
 	Email     string `json:"email"`
-	IsActive  any    `json:"isActive"`
+	IsActive  bool   `json:"isActive"`
 }
 
 type ResourceSearchResult struct {

@@ -42,7 +42,7 @@ func (a *App) cmdContactSearch(args []string) (*cmdResult, error) {
 			Email:       asString(it["emailAddress"]),
 			Phone:       asString(it["phone"]),
 			MobilePhone: asString(it["mobilePhone"]),
-			IsActive:    it["isActive"],
+			IsActive:    asBool(it["isActive"]),
 		})
 	}
 	return &cmdResult{action: "contact.search", data: ContactSearchResult{

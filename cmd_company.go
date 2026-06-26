@@ -30,7 +30,7 @@ func (a *App) cmdCompanySearch(args []string) (*cmdResult, error) {
 		companies = append(companies, CompanyHit{
 			ID:       asInt64(it["id"]),
 			Name:     asString(it["companyName"]),
-			IsActive: it["isActive"],
+			IsActive: asBool(it["isActive"]),
 		})
 	}
 	return &cmdResult{

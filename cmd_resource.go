@@ -27,7 +27,7 @@ func (a *App) cmdResourceSearch(args []string) (*cmdResult, error) {
 			FirstName: asString(it["firstName"]),
 			LastName:  asString(it["lastName"]),
 			Email:     asString(it["email"]),
-			IsActive:  it["isActive"],
+			IsActive:  asBool(it["isActive"]),
 		})
 	}
 	return &cmdResult{

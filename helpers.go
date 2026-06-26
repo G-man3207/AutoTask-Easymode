@@ -202,3 +202,26 @@ func asFloat(v any) float64 {
 		return 0
 	}
 }
+
+// asBool coerces common Autotask bool encodings to a typed bool.
+func asBool(v any) bool {
+	switch x := v.(type) {
+	case bool:
+		return x
+	case int:
+		return x != 0
+	case int64:
+		return x != 0
+	case float64:
+		return x != 0
+	case string:
+		switch strings.ToLower(strings.TrimSpace(x)) {
+		case "1", "true", "yes", "y":
+			return true
+		default:
+			return false
+		}
+	default:
+		return false
+	}
+}

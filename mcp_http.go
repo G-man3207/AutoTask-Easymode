@@ -24,12 +24,16 @@ func (a *App) serveHTTPCommand(args []string) int {
 	metadataURL := fs.String("metadata-url", envDefault("ATEM_ENTRA_METADATA_URL", ""), "optional Entra OIDC metadata URL")
 	profileFile := fs.String("profile-file", envDefault("ATEM_AUTH_PROFILE_FILE", ""), "technician profile JSON file")
 	if err := fs.Parse(args); err != nil {
-		_ = writeJSON(os.Stdout, resultFromError(usageErr("serve", err)))
+		if !emitJSON(os.Stdout, os.Stderr, resultFromError(usageErr("serve", err))) {
+			return 1
+		}
 		return 1
 	}
 	surface, err := mcpSurfaceByName(*toolset)
 	if err != nil {
-		_ = writeJSON(os.Stdout, resultFromError(err))
+		if !emitJSON(os.Stdout, os.Stderr, resultFromError(err)) {
+			return 1
+		}
 		return 1
 	}
 	authn, err := newMCPAuthenticator(authOptions{
@@ -41,7 +45,9 @@ func (a *App) serveHTTPCommand(args []string) int {
 		ProfileFile: *profileFile,
 	})
 	if err != nil {
-		_ = writeJSON(os.Stdout, resultFromError(err))
+		if !emitJSON(os.Stdout, os.Stderr, resultFromError(err)) {
+			return 1
+		}
 		return 1
 	}
 	return a.serveHTTPMCP(*addr, surface, authn)

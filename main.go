@@ -46,13 +46,17 @@ func run(args []string) int {
 	case "describe":
 		// Self-description of every command/flag — no config needed, so an agent
 		// can discover the surface before credentials are set.
-		_ = writeJSON(os.Stdout, Result{OK: true, Action: "describe", Data: describeData()})
+		if !emitJSON(os.Stdout, os.Stderr, Result{OK: true, Action: "describe", Data: describeData()}) {
+			return 1
+		}
 		return 0
 	}
 
 	app, err := newApp()
 	if err != nil {
-		_ = writeJSON(os.Stdout, resultFromError(err))
+		if !emitJSON(os.Stdout, os.Stderr, resultFromError(err)) {
+			return 1
+		}
 		return 1
 	}
 	if args[0] == "mcp" {
@@ -65,10 +69,14 @@ func run(args []string) int {
 	}
 	res, err := app.dispatch(args)
 	if err != nil {
-		_ = writeJSON(os.Stdout, resultFromError(err))
+		if !emitJSON(os.Stdout, os.Stderr, resultFromError(err)) {
+			return 1
+		}
 		return 1
 	}
-	_ = writeJSON(os.Stdout, Result{OK: true, Action: res.action, DryRun: res.dryRun, Data: res.data})
+	if !emitJSON(os.Stdout, os.Stderr, Result{OK: true, Action: res.action, DryRun: res.dryRun, Data: res.data}) {
+		return 1
+	}
 	return 0
 }
 
