@@ -99,7 +99,7 @@ func asFlag(tok string) (name, value string, isFlag bool) {
 // parseSearch parses a free-text search command line where flags (--limit,
 // --company) may appear before OR after the query words. Go's flag package
 // stops at the first non-flag token, which silently swallowed flags placed after
-// the query — this parser is deliberately position-independent.
+// the query; this parser is deliberately position-independent.
 func parseSearch(args []string) (searchArgs, error) {
 	out := searchArgs{limit: defaultSearchLimit}
 	var words []string

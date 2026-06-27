@@ -351,8 +351,8 @@ type timerStopJournalPayload struct {
 	CloseTicket  bool           `json:"closeTicket"`
 }
 
-// workdayEndHour anchors the end of a backdated work window so the derived
-// start/end times fall within the worked business day.
+// workdayEndHour anchors the end of a backdated work window; the derived
+// start/end times then fall within the worked business day.
 const workdayEndHour = 17
 
 // workedAnchor returns the timestamp that ends a time entry's window. With no
@@ -385,8 +385,8 @@ func (a *App) timeEntryFields(resourceID int, ticketID int64, hours float64, not
 // Autotask records the right instant instead of treating a naive local time as
 // UTC and shifting the displayed window by the local offset.
 func (a *App) timeEntryFieldsWindow(resourceID int, ticketID int64, start, end time.Time, notes string) map[string]any {
-	// dateWorked only needs the calendar day; anchor it at local noon so the day
-	// is stable no matter the UTC offset.
+	// dateWorked only needs the calendar day. Anchor at local noon to keep the
+	// day stable regardless of UTC offset.
 	y, m, d := end.Date()
 	day := time.Date(y, m, d, 12, 0, 0, 0, end.Location())
 	fields := map[string]any{

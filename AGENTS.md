@@ -27,7 +27,7 @@ red.** Do not weaken the linter config to make an error disappear.
 **One binary, one source of truth.** The repo source is the truth; the runnable
 `atem` is whatever `go install` put in `<GOPATH>/bin` (on PATH). They drift if you
 change code and forget to reinstall. After any change that should be runnable,
-reinstall with `./scripts/install.ps1` — it stamps the binary with the git commit
+reinstall with `./scripts/install.ps1`; it stamps the binary with the git commit
 + build time so `atem version` reports exactly which source it was built from
 (`commit unknown` means it was built some other way, e.g. plain `go build`). Never
 build an exe into the repo root.
@@ -36,17 +36,17 @@ Specific rules:
 
 1. **No new lint suppressions** (`//nolint`, `#nosec`, config exclusions) without
    a one-line justification comment next to them. The existing exclusions in
-   `.golangci.yml` are documented — follow that pattern or don't add them.
+   `.golangci.yml` are documented; follow that pattern or don't add them.
 2. **Tests are part of the change.** New behavior needs table-driven tests. The
-   command layer is deterministic by construction — time is injected via
-   `App.now` and the Autotask API via the `autotaskClient` interface — so tests
+   command layer is deterministic by construction: time is injected via
+   `App.now` and the Autotask API via the `autotaskClient` interface, so tests
    never touch the network or the clock. Use the `fakeClient` and `newTestApp`
    helpers in `testsupport_test.go`. Keep package coverage roughly where it is
    (timer ~95%, atapi/config ~80%, main ~85%).
 3. **Output contract.** Every command prints exactly one JSON object via the
    `Result` type: `{ "ok": true, "action": ..., "data": ... }` on success, or
    `{ "ok": false, "error": ..., "hint": ... }` on failure with a non-zero exit.
-   Keep it stable — agents parse it.
+   Keep it stable; agents parse it.
 4. **Writes are guarded.** Any command that mutates Autotask (creating tickets,
    logging time, closing tickets) MUST support `--dry-run` that previews the
    payload and performs no I/O or state mutation.
@@ -59,7 +59,7 @@ Specific rules:
 
 ```
 main.go            entrypoint, registry-driven dispatch, usage
-registry.go        command registry — the single source of truth for every
+registry.go        command registry: the single source of truth for every
                    command/flag; drives dispatch, `atem describe`, and MCP tools
 mcp.go             `atem mcp`: minimal MCP server over stdio (JSON-RPC 2.0)
 results.go         typed result payloads (the `data` of each command); the source
@@ -97,13 +97,13 @@ orchestrates. This is what makes the whole thing testable without a live API.
    first non-flag token).
 2. Return a typed result struct from `results.go` (not a bare `map[string]any`),
    so the output schema is generated for free. Add a new struct there if needed;
-   a distinct `--dry-run` shape gets its own struct. (Genuinely dynamic shapes —
-   a raw Autotask object, conditional diagnostics — may stay `map[string]any`.)
+   a distinct `--dry-run` shape gets its own struct. Dynamic shapes (a
+   raw Autotask object, conditional diagnostics) may stay `map[string]any`.)
 3. Register it in `commands` in `registry.go`: name, summary, flags (with
    `Positional`/`Required`/`Type`/`Enum`), an example, `Destructive`/`ReadOnly`,
    `Surfaces`, and `OutputType` (+ `DryRunType` for a dry-run shape). This wires
    dispatch AND exposes it via `describe` + the relevant MCP surface. Keep the
-   registry flags in sync with the handler's `newFlagSet` — `TestRegistryFlagsAreDefined`
+   registry flags in sync with the handler's `newFlagSet`; `TestRegistryFlagsAreDefined`
    guards against drift.
 4. If it writes to Autotask, add `--dry-run` and return the would-be payload.
 5. Add tests using `newTestApp` + `fakeClient`.
@@ -122,10 +122,10 @@ orchestrates. This is what makes the whole thing testable without a live API.
   out to the binary.
 - **Log split work as separate windows.** When the user describes discrete clock
   windows (e.g. "11–12 and 13–15"), use `time add --windows "11-12,13-15"` so each
-  window becomes its own time entry with real start/end times — never collapse it
+  window becomes its own time entry with real start/end times, never collapsed
   into one merged block. The user prefers entries that mirror the actual hours.
 - **Act on `report` flags.** `report` output includes a `flagged` array (in the
-  JSON only — never the customer markdown) of time entries worth itemizing, each
+  JSON only, never the customer markdown) of time entries worth itemizing, each
   with a `reason`: `thin` (over `flagHoursOver` h with a note under
   `flagNotesUnder` chars) or `large` (at least `flagHoursAlways` h regardless of
   note). When it is non-empty, proactively tell the user which entries and ask
@@ -134,7 +134,7 @@ orchestrates. This is what makes the whole thing testable without a live API.
 - **The tool fetches ground truth; you help refine.** Autotask entries are often
   lumped (a whole project week logged as one 20 h entry). Turning that into a
   clean customer narrative (intro, per-day breakdown, summary) is a human+AI
-  editing step on top of the raw data — the `--out` markdown is a draft to edit,
+  editing step on top of the raw data; the `--out` markdown is a draft to edit,
   not the final word.
 
 ## Autotask specifics to remember
@@ -145,7 +145,7 @@ orchestrates. This is what makes the whole thing testable without a live API.
   `TimeEntries` entity (`ticketID`, `resourceID`, `dateWorked`, `hoursWorked`,
   `summaryNotes`).
 - Org-specific IDs (queue, statuses, work type/`billingCodeId`, your
-  `resourceId`/`roleId`) are **config**, not constants — they differ per Autotask
+  `resourceId`/`roleId`) are **config**, not constants; they differ per Autotask
   instance. Discover them with `atem config doctor`.
 - Created tickets are assigned to your `resourceId` + `roleId`
   (`assignedResourceID`/`assignedResourceRoleID`) so you own them for follow-up.
@@ -155,9 +155,9 @@ orchestrates. This is what makes the whole thing testable without a live API.
   from the hours, ending now by default or on `timer stop --date YYYY-MM-DD` for
   backdated work). Logging as your own resource works **without**
   `ImpersonationResourceId`.
-- Work type (`billingCodeID`) is omitted by default — the write user usually
+- Work type (`billingCodeID`) is omitted by default; the write user usually
   isn't authorized to set the allocation code; leaving `billingCodeId` unset uses
   Autotask's default.
-- Company id `0` is a valid company (the owner org) — never treat 0 as "unset".
+- Company id `0` is a valid company (the owner org); never treat 0 as "unset".
 - Full setup, least-privilege permissions and field requirements live in
   [docs/AUTOTASK.md](docs/AUTOTASK.md).

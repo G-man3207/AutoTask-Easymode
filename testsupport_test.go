@@ -40,7 +40,7 @@ type fakeClient struct {
 	counts  map[string]int
 
 	// searchCompany records the companyID passed to the last SearchTickets call,
-	// so tests can assert company-scoping (0 is a real company, not "all").
+	// letting tests assert company-scoping (0 is a real company, not "all").
 	searchCompany int
 }
 

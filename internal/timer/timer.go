@@ -1,8 +1,8 @@
-// Package timer manages local, offline work sessions. It exists because a
-// technician rarely logs time to the second — they work in chunks and switch
-// between customers. A session accrues elapsed time that becomes a *suggested*
-// number of hours; the human (or the AI driving the CLI) confirms or overrides
-// it before anything is written to Autotask.
+// Package timer manages local, offline work sessions. A technician rarely logs
+// time to the second; they work in chunks and switch between customers. A
+// session accrues elapsed time that becomes a *suggested* number of hours; the
+// human (or the AI driving the CLI) confirms or overrides it before anything is
+// written to Autotask.
 //
 // Multiple sessions can be open at once; only those with a running segment
 // accrue time, so you can pause one customer and switch to another.

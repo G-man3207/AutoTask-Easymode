@@ -3,17 +3,16 @@ package main
 import "autotask-easymode/internal/config"
 
 // This file defines the typed result payloads (the `data` of each command's JSON
-// result). They are the single source of truth for output shape: the MCP
-// outputSchema is generated from these structs by reflection, so it cannot drift
-// from what the handlers actually return.
+// result). They are the single source of truth for output shape, and the MCP
+// outputSchema is generated from them by reflection.
 //
-// Field presence intentionally mirrors the wire format: no `omitempty` except
-// where a key is genuinely optional (e.g. report markdown), so output stays
-// stable. Dry-run variants are separate structs because their shape differs.
+// Field presence mirrors the wire format: no `omitempty` except where a key is
+// genuinely optional (e.g. report markdown). Dry-run variants are separate
+// structs because their shape differs.
 //
 // Two commands stay map-based on purpose: `ticket show` (a raw Autotask object,
-// arbitrary fields) and `config doctor` (conditional diagnostics). They register
-// no OutputType, so they get a loose object schema.
+// arbitrary fields) and `config doctor` (conditional diagnostics). With no
+// OutputType they get a loose object schema.
 
 // --- shared ---
 

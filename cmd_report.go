@@ -79,8 +79,8 @@ func (a *App) cmdReport(args []string) (*cmdResult, error) {
 
 // writeOut optionally writes the report to a file: the rendered markdown when
 // --format md, otherwise the indented JSON of the report data. Permissions are
-// restrictive because reports contain customer data. It records the path under
-// "writtenTo" so the JSON result confirms where it went.
+// restrictive because reports contain customer data. The path is recorded under
+// "writtenTo" in the JSON result.
 func writeOut(path, format string, res ReportResult) (string, error) {
 	if path == "" {
 		return "", nil
@@ -114,9 +114,9 @@ func (a *App) reportTickets(ctx context.Context, client autotaskClient, company 
 	}
 
 	companyGiven := strings.TrimSpace(company) != ""
-	// Default to all companies; 0 is a valid company id, so only scope when a
-	// --company was actually given. (TicketsForCompany is only reached when a
-	// company was given, so it never sees the AllCompanies sentinel.)
+	// Default to all companies; 0 is a valid company id, so only scope when
+	// --company is actually given. (TicketsForCompany is only reached with a
+	// real company and never sees the AllCompanies sentinel.)
 	companyID := atapi.AllCompanies
 	if companyGiven {
 		id, err := a.cfg.ResolveCompany(company)
@@ -217,9 +217,9 @@ func (a *App) flagEntry(hours float64, notes string) string {
 	}
 }
 
-// flaggedEntries returns the entries flagEntry marks, annotated (with a reason)
-// for the operator/AI. It is surfaced in the JSON only (never the customer
-// markdown) so the AI driving the CLI can offer to break those lumps down.
+// flaggedEntries returns the entries flagEntry marks, each annotated with a
+// reason for the operator. Surfaced in the JSON only, never the customer
+// markdown.
 func (a *App) flaggedEntries(entries []map[string]any, titles map[int64]string) []FlaggedEntry {
 	flagged := []FlaggedEntry{}
 	for _, e := range entries {

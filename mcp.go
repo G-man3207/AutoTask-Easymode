@@ -214,7 +214,7 @@ func mcpInputSchema(c command) map[string]any {
 }
 
 // mcpToolsCall executes a tool by translating its arguments into a CLI argv and
-// running the same handler the CLI uses, so behavior and write-guards match.
+// running the same handler the CLI uses. Behavior and write-guards match the CLI.
 func (a *App) mcpToolsCall(params json.RawMessage) (map[string]any, *rpcError) {
 	return a.mcpToolsCallWithSurface(params, localMCPSurface())
 }
@@ -427,7 +427,7 @@ func (a *App) mcpResourcesReadWithSurface(params json.RawMessage, surface mcpSur
 // --- prompts ---------------------------------------------------------------
 
 // mcpPrompt is a reusable workflow template. render fills it from the supplied
-// arguments; the text bakes in atem's conventions so the agent drives correctly.
+// arguments; the text bakes in atem's conventions for the agent to follow.
 type mcpPrompt struct {
 	name        string
 	description string
@@ -452,7 +452,7 @@ var mcpPromptList = []mcpPrompt{
 				"What I did:\n" + a["notes"] + "\n\n" +
 				"Guidance:\n" +
 				"- Use the atem tools. For split times (e.g. 11-12 and 13-15) use time_add with " +
-				"--windows so each window becomes its own entry — never one merged block.\n" +
+				"--windows so each window becomes its own entry, never one merged block.\n" +
 				"- One ticket per distinct task; search for an existing ticket and attach to it, " +
 				"else create one. company id 0 is valid (the owner org).\n" +
 				"- If the work involved a customer contact or the user mentions who they spoke with, " +

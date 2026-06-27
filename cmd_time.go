@@ -175,7 +175,7 @@ func (a *App) executeTimeAdd(createTicket map[string]any, entries []map[string]a
 		id, cerr := client.Create(ctx, atapi.EntityTimeEntries, e)
 		if cerr != nil {
 			return nil, hinted(
-				"earlier entries were already logged — check the ticket before retrying",
+				"earlier entries were already logged; check the ticket before retrying",
 				"failed after %d of %d time entries: %v", completedEntryCount(rec.EntryIDs), len(entries), cerr,
 			)
 		}

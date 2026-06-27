@@ -10,8 +10,7 @@ const (
 )
 
 // cmdFlag describes one input of a command: a --flag or a positional argument.
-// The same metadata drives the CLI help, `atem describe`, and the MCP tool
-// schemas, so the agent-facing surface can never drift from the commands.
+// The same metadata drives CLI help, `atem describe`, and the MCP tool schemas.
 type cmdFlag struct {
 	Name       string   `json:"name"`
 	Type       string   `json:"type"` // string | int | float | bool
@@ -128,7 +127,7 @@ var commands = []command{
 		Flags: []cmdFlag{
 			{Name: "company", Type: "string", Required: true, Desc: "customer alias or companyID"},
 			{Name: "title", Type: "string", Required: true, Desc: "ticket title"},
-			{Name: "desc", Type: "string", Required: true, Desc: "ticket description (required — an empty description is customer-facing)"},
+			{Name: "desc", Type: "string", Required: true, Desc: "ticket description (required; empty descriptions are customer-facing)"},
 			{Name: "issue-type", Type: "int", Desc: "ticket issue type id from ticket issue-types; expected for most new tickets"},
 			{Name: "sub-issue-type", Type: "int", Desc: "ticket sub-issue type id from ticket issue-types; expected for most new tickets and requires --issue-type"},
 			{Name: "contact", Type: "int", Desc: "primary contact id returned by contact search for the same company; use when the work involved a customer contact"},
@@ -337,8 +336,8 @@ func (c command) hasSurface(surface commandSurface) bool {
 	return false
 }
 
-// describeData serializes the registry for `atem describe`. It needs no config,
-// so the surface is discoverable even before credentials are set.
+// describeData serializes the registry for `atem describe`. It needs no config
+// and works before credentials are set.
 func describeData() map[string]any {
 	return map[string]any{"version": version, "commands": commands}
 }
@@ -379,7 +378,7 @@ func commandUsageLine(c command) string {
 }
 
 // usageText builds the help screen. The command reference is generated from the
-// registry so it cannot drift; only the surrounding prose is curated here.
+// registry; only the surrounding prose is hand-written.
 func usageText() string {
 	var b strings.Builder
 	b.WriteString("atem " + version + " - AutoTask EasyMode\n\n")

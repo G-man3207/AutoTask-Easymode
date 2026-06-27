@@ -44,7 +44,7 @@ func jsonSchemaFor(t reflect.Type) map[string]any {
 		}
 		return map[string]any{"type": "object", "properties": props}
 	case reflect.Interface:
-		return map[string]any{} // `any` — no constraint
+		return map[string]any{} // `any`, no constraint
 	default:
 		return map[string]any{}
 	}

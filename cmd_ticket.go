@@ -8,13 +8,13 @@ import (
 )
 
 // requireDescription enforces that any ticket atem creates on the user's behalf
-// carries a non-blank description. A ticket with an empty description reads as
-// unprofessional to the customer, so the explicit create paths (ticket create,
-// time add) refuse to proceed without one.
+// carries a non-blank description. Empty descriptions read as unprofessional to
+// the customer; the explicit create paths (ticket create, time add) refuse to
+// proceed without one.
 func requireDescription(desc string) error {
 	if strings.TrimSpace(desc) == "" {
 		return hinted(
-			`add --desc "<what the ticket is about>" — an empty description looks unprofessional to the customer`,
+			`add --desc "<what the ticket is about>": an empty description looks unprofessional to the customer`,
 			"a new ticket needs a description",
 		)
 	}
@@ -80,9 +80,9 @@ func (a *App) ticketFieldsWithOptions(companyID int, title, desc string, opts ti
 	if strings.TrimSpace(desc) != "" {
 		fields["description"] = desc
 	}
-	// Assign the ticket to the configured resource (with their role) so the work
-	// is owned by you and easy to follow up — this is the ticket's "Primary
-	// Resource (Role)". Autotask requires the role when a resource is assigned.
+	// Assign the ticket to the configured resource (with their role). This is
+	// the ticket's "Primary Resource (Role)"; Autotask requires the role when a
+	// resource is assigned.
 	if rid, roleID := a.resourceID(), a.roleID(); rid != 0 && roleID != 0 {
 		fields["assignedResourceID"] = rid
 		fields["assignedResourceRoleID"] = roleID

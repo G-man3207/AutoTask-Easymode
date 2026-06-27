@@ -91,8 +91,8 @@ func (a *App) setConfigValue(key, val string) error {
 }
 
 // cmdConfigDoctor verifies credentials and the API zone, then lists the
-// org-specific picklist IDs (ticket status/priority/queue, work types) so the
-// technician can fill in config without guessing. It degrades gracefully: each
+// org-specific picklist IDs (ticket status/priority/queue, work types) for the
+// technician to fill in config without guessing. It degrades gracefully: each
 // section reports its own error rather than failing the whole command.
 func (a *App) cmdConfigDoctor(args []string) (*cmdResult, error) {
 	fs := newFlagSet("config doctor")
@@ -149,25 +149,25 @@ func (a *App) doctorRecommendations() []string {
 	var rec []string
 	d := a.cfg.Defaults
 	if d.QueueID == 0 {
-		rec = append(rec, "queueId is unset (required to create tickets) — pick from picklists.ticketQueue: atem config set queueId <id>")
+		rec = append(rec, "queueId is unset (required to create tickets); pick from picklists.ticketQueue: atem config set queueId <id>")
 	}
 	if d.TicketStatusNew == 0 {
-		rec = append(rec, "ticketStatusNew is unset (new-ticket status) — pick from picklists.ticketStatus: atem config set ticketStatusNew <id>")
+		rec = append(rec, "ticketStatusNew is unset (new-ticket status); pick from picklists.ticketStatus: atem config set ticketStatusNew <id>")
 	}
 	if d.TicketStatusComplete == 0 {
-		rec = append(rec, "ticketStatusComplete is unset (status used to close tickets) — pick from picklists.ticketStatus: atem config set ticketStatusComplete <id>")
+		rec = append(rec, "ticketStatusComplete is unset (status used to close tickets); pick from picklists.ticketStatus: atem config set ticketStatusComplete <id>")
 	}
 	if d.Priority == 0 {
-		rec = append(rec, "priority is unset (ticket priority) — pick from picklists.ticketPriority: atem config set priority <id>")
+		rec = append(rec, "priority is unset (ticket priority); pick from picklists.ticketPriority: atem config set priority <id>")
 	}
 	if a.cfg.Resource() == 0 {
-		rec = append(rec, `resourceId is unset (who time is logged as) — atem resource search "<your name>" then atem config set resourceId <id>`)
+		rec = append(rec, `resourceId is unset (who time is logged as); atem resource search "<your name>" then atem config set resourceId <id>`)
 	}
 	if d.BillingCodeID == 0 {
-		rec = append(rec, "billingCodeId is unset (work type for time entries) — pick from picklists.workTypes: atem config set billingCodeId <id>")
+		rec = append(rec, "billingCodeId is unset (work type for time entries); pick from picklists.workTypes: atem config set billingCodeId <id>")
 	}
 	if len(rec) == 0 {
-		rec = append(rec, "all key defaults are set — you're ready to log time")
+		rec = append(rec, "all key defaults are set; you're ready to log time")
 	}
 	return rec
 }

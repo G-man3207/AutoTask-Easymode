@@ -474,7 +474,7 @@ func TestTimerStartNoTicket(t *testing.T) {
 
 func TestTimerStartAcceptsCompanyZero(t *testing.T) {
 	app := newTestApp(t, &fakeClient{})
-	// 0 is a valid Autotask company (the owner org) — it must not be treated as
+	// 0 is a valid Autotask company (the owner org) and must not be treated as
 	// "no company given".
 	if _, err := app.cmdTimerStart([]string{"--company", "0", "--title", "x", "--no-ticket"}); err != nil {
 		t.Fatalf("company 0 should be accepted: %v", err)
@@ -727,7 +727,7 @@ func TestTimerStopCreatesTicketForCompanyZero(t *testing.T) {
 	app := newTestApp(t, fc)
 	app.cfg.ResourceID = 55
 	app.cfg.Defaults.QueueID = 8
-	// 0 is the owner org, a valid company — a no-ticket session on it must still
+	// 0 is the owner org, a valid company. A no-ticket session on it must still
 	// create a ticket on stop, not be rejected as "no company".
 	app.state.Start("a", 0, "A", testNow, false)
 	if _, err := app.cmdTimerStop([]string{"s1", "--hours", "1", "--note", "x"}); err != nil {

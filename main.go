@@ -2,8 +2,8 @@
 // Autotask PSA REST API. It turns technician workflows into tickets, time
 // entries, and AI-friendly reports.
 //
-// Every command prints a single JSON object so the tool is easy to drive from
-// an AI agent; writes to Autotask support --dry-run for a safe preview first.
+// Every command prints a single JSON object for predictable agent driving;
+// writes to Autotask support --dry-run for a safe preview first.
 package main
 
 import (
@@ -28,8 +28,8 @@ func main() {
 	os.Exit(run(os.Args[1:]))
 }
 
-// run executes a command line and returns a process exit code. It is split from
-// main so tests can exercise dispatch without spawning a process.
+// run executes a command line and returns a process exit code. It is split out
+// of main to keep dispatch testable without spawning a process.
 func run(args []string) int {
 	if len(args) == 0 {
 		printUsage(os.Stdout)
@@ -43,8 +43,8 @@ func run(args []string) int {
 		_, _ = fmt.Fprintf(os.Stdout, "atem %s (commit %s, built %s)\n", version, commit, buildTime)
 		return 0
 	case "describe":
-		// Self-description of every command/flag — no config needed, so an agent
-		// can discover the surface before credentials are set.
+		// Self-description of every command/flag. Available without config,
+		// before any credentials are set.
 		if !emitJSON(os.Stdout, os.Stderr, Result{OK: true, Action: "describe", Data: describeData()}) {
 			return 1
 		}
@@ -79,9 +79,8 @@ func run(args []string) int {
 	return 0
 }
 
-// dispatch routes a command line to its handler using the registry. It matches
-// the longest command name first ("ticket create"), then a single word
-// ("report"), so the set of commands lives in exactly one place.
+// dispatch routes a command line to its handler via the registry. Longest
+// command name matches first ("ticket create"), then a single word ("report").
 func (a *App) dispatch(args []string) (*cmdResult, error) {
 	if len(args) >= 2 {
 		if c := lookupCommand(args[0] + " " + args[1]); c != nil {
