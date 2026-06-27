@@ -28,11 +28,13 @@ func (a *App) ticketFields(companyID int, title, desc string) (map[string]any, [
 }
 
 type ticketFieldOptions struct {
-	issueType            int
-	subIssueType         int
-	contactID            int64
-	preferClassification bool
-	preferContact        bool
+	issueType    int
+	subIssueType int
+	contactID    int64
+	// creating marks a deliberate ticket creation (ticket create, or time add
+	// via --company). When set, atem emits classification/contact expectations
+	// so the operator/agent is nudged toward complete tickets.
+	creating bool
 }
 
 func (o ticketFieldOptions) validate() error {
@@ -75,8 +77,7 @@ func (a *App) ticketFieldsWithOptions(companyID int, title, desc string, opts ti
 	} else {
 		warnings = append(warnings, "defaults.queueId is not set; Autotask usually requires queueID to create a ticket")
 	}
-	warnings = append(warnings, opts.classificationWarnings()...)
-	warnings = append(warnings, opts.contactWarnings()...)
+	warnings = append(warnings, opts.expectationWarnings()...)
 	if strings.TrimSpace(desc) != "" {
 		fields["description"] = desc
 	}
@@ -101,25 +102,21 @@ func (a *App) completeTicketStatus() (int, error) {
 	return status, nil
 }
 
-func (o ticketFieldOptions) classificationWarnings() []string {
-	if !o.preferClassification {
+func (o ticketFieldOptions) expectationWarnings() []string {
+	if !o.creating {
 		return nil
 	}
+	var w []string
 	switch {
 	case o.issueType == 0:
-		return []string{"issueType/subIssueType are unset; most new tickets should be classified with ticket issue-types, and omitting them should be an exception for genuinely unclear or unusual cases"}
+		w = append(w, "issueType/subIssueType are unset; most new tickets should be classified with ticket issue-types, and omitting them should be an exception for genuinely unclear or unusual cases")
 	case o.subIssueType == 0:
-		return []string{"subIssueType is unset; most classified tickets should include a sub-issue type from the selected issue type unless no suitable option exists"}
-	default:
-		return nil
+		w = append(w, "subIssueType is unset; most classified tickets should include a sub-issue type from the selected issue type unless no suitable option exists")
 	}
-}
-
-func (o ticketFieldOptions) contactWarnings() []string {
-	if !o.preferContact || o.contactID != 0 {
-		return nil
+	if o.contactID == 0 {
+		w = append(w, "contactID is unset; ask who the user spoke with when the work involved a customer person, then run contact search within the target company and pass --contact. Omit only for internal/system work, unclear cases, or when no person is known.")
 	}
-	return []string{"contactID is unset; ask who the user spoke with when the work involved a customer person, then run contact search within the target company and pass --contact. Omit only for internal/system work, unclear cases, or when no person is known."}
+	return w
 }
 
 func validateTicketContact(ctx context.Context, client autotaskClient, companyID int, contactID int64) error {
@@ -271,7 +268,7 @@ func (a *App) cmdTicketCreate(args []string) (*cmdResult, error) {
 	if err := fs.Parse(args); err != nil {
 		return nil, usageErr("ticket create", err)
 	}
-	opts := ticketFieldOptions{issueType: *issueType, subIssueType: *subIssueType, contactID: *contactID, preferClassification: true, preferContact: true}
+	opts := ticketFieldOptions{issueType: *issueType, subIssueType: *subIssueType, contactID: *contactID, creating: true}
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}

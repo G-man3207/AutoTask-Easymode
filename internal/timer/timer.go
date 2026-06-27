@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"strconv"
@@ -52,7 +53,7 @@ func (s *Session) Elapsed(now time.Time) time.Duration {
 
 // Hours returns elapsed time in decimal hours, rounded to 2 decimals.
 func (s *Session) Hours(now time.Time) float64 {
-	return round2(s.Elapsed(now).Hours())
+	return math.Round(s.Elapsed(now).Hours()*100) / 100
 }
 
 // State is the full set of local sessions, persisted as JSON.
@@ -200,8 +201,4 @@ func (st *State) Sorted() []*Session {
 	out := append([]*Session(nil), st.Sessions...)
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out
-}
-
-func round2(f float64) float64 {
-	return float64(int64(f*100+0.5)) / 100
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"autotask-easymode/internal/atapi"
 	"errors"
 	"strconv"
 	"strings"
@@ -40,11 +39,10 @@ func (a *App) cmdTimeAdd(args []string) (*cmdResult, error) {
 	}
 	creatingTicket := strings.TrimSpace(*company) != ""
 	ticketOpts := ticketFieldOptions{
-		issueType:            *issueType,
-		subIssueType:         *subIssueType,
-		contactID:            *contactID,
-		preferClassification: creatingTicket,
-		preferContact:        creatingTicket,
+		issueType:    *issueType,
+		subIssueType: *subIssueType,
+		contactID:    *contactID,
+		creating:     creatingTicket,
 	}
 	if err := ticketOpts.validate(); err != nil {
 		return nil, err
@@ -167,23 +165,14 @@ func (a *App) executeTimeAdd(createTicket map[string]any, entries []map[string]a
 	}
 	ids := make([]int64, len(entries))
 	for i, e := range entries {
-		if rec.EntryIDs[i] != 0 {
-			ids[i] = rec.EntryIDs[i]
-			continue
-		}
-		e["ticketID"] = ticketID
-		id, cerr := client.Create(ctx, atapi.EntityTimeEntries, e)
+		id, cerr := a.ensureJournalTimeEntry(ctx, client, journal, rec, ticketID, i, e)
 		if cerr != nil {
 			return nil, hinted(
 				"earlier entries were already logged; check the ticket before retrying",
 				"failed after %d of %d time entries: %v", completedEntryCount(rec.EntryIDs), len(entries), cerr,
 			)
 		}
-		rec.EntryIDs[i] = id
 		ids[i] = id
-		if jerr := journal.touch(rec, a.now()); jerr != nil {
-			return nil, jerr
-		}
 	}
 
 	closed, err := a.ensureJournalClosed(ctx, client, journal, rec, ticketID, closeTicket)

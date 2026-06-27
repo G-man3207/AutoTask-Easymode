@@ -2,8 +2,6 @@ package main
 
 import (
 	"autotask-easymode/internal/atomicfile"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
@@ -37,7 +35,6 @@ func loadWriteJournal(path string) (*writeJournal, error) {
 	if err := json.Unmarshal(data, j); err != nil {
 		return nil, err
 	}
-	j.path = path
 	if j.Operations == nil {
 		j.Operations = map[string]*writeJournalRecord{}
 	}
@@ -67,13 +64,16 @@ func (j *writeJournal) complete(key string) error {
 	return j.save()
 }
 
+// operationKey returns a stable key identifying one write operation. It is local
+// to this user's machine (no untrusted input, no security property), so the
+// payload itself is the key: unique, deterministic, and — unlike a hash —
+// human-readable when a stranded journal record needs inspecting.
 func operationKey(action string, payload any) (string, error) {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(append([]byte(action+":"), data...))
-	return hex.EncodeToString(sum[:]), nil
+	return action + ":" + string(data), nil
 }
 
 func (a *App) beginWriteOperation(action string, payload any) (*writeJournal, *writeJournalRecord, error) {

@@ -79,12 +79,6 @@ func (a *App) serveMCP(in io.Reader, out io.Writer) int {
 	}
 }
 
-// handleRPC processes one JSON-RPC message and returns the response to send (or
-// reply=false for notifications, which get no response).
-func (a *App) handleRPC(line []byte) (rpcResponse, bool) {
-	return a.handleRPCWithSurface(line, localMCPSurface())
-}
-
 func (a *App) handleRPCWithSurface(line []byte, surface mcpSurface) (rpcResponse, bool) {
 	var req rpcRequest
 	if err := json.Unmarshal(line, &req); err != nil {
@@ -156,11 +150,6 @@ func initializeResult(params json.RawMessage) map[string]any {
 // "ticket_create"), since MCP tool names cannot contain spaces.
 func mcpToolName(name string) string { return strings.ReplaceAll(name, " ", "_") }
 
-// mcpTools builds the tools/list payload from the registry.
-func mcpTools() []map[string]any {
-	return mcpToolsFor(localMCPSurface().commands)
-}
-
 func mcpToolsFor(cmds []command) []map[string]any {
 	tools := make([]map[string]any, 0, len(cmds))
 	for i := range cmds {
@@ -211,12 +200,6 @@ func mcpInputSchema(c command) map[string]any {
 		schema["required"] = required
 	}
 	return schema
-}
-
-// mcpToolsCall executes a tool by translating its arguments into a CLI argv and
-// running the same handler the CLI uses. Behavior and write-guards match the CLI.
-func (a *App) mcpToolsCall(params json.RawMessage) (map[string]any, *rpcError) {
-	return a.mcpToolsCallWithSurface(params, localMCPSurface())
 }
 
 func (a *App) mcpToolsCallWithSurface(params json.RawMessage, surface mcpSurface) (map[string]any, *rpcError) {

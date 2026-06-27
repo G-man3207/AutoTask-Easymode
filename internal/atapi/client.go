@@ -202,9 +202,12 @@ func (c *Client) validatedPaginationURL(next string) (string, error) {
 // do executes a request with auth headers and decodes a JSON response into out.
 // fullURL may be an entity URL or an absolute pagination URL.
 func (c *Client) do(ctx context.Context, method, fullURL string, body, out any) error {
-	payload, err := encodeBody(body)
-	if err != nil {
-		return err
+	var payload []byte
+	if body != nil {
+		var err error
+		if payload, err = json.Marshal(body); err != nil {
+			return err
+		}
 	}
 	tries := 1
 	if retryableRead(method, fullURL) {
@@ -225,17 +228,6 @@ func (c *Client) do(ctx context.Context, method, fullURL string, body, out any) 
 		}
 	}
 	return lastErr
-}
-
-func encodeBody(body any) ([]byte, error) {
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return nil, err
-		}
-		return b, nil
-	}
-	return nil, nil
 }
 
 func (c *Client) doOnce(ctx context.Context, method, fullURL string, payload []byte, hasBody bool, out any, attempt int) (bool, time.Duration, error) {

@@ -97,7 +97,7 @@ func dummyArgv(c command) []string {
 
 func TestMCPInitialize(t *testing.T) {
 	app := newTestApp(t, &fakeClient{})
-	resp, reply := app.handleRPC([]byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`))
+	resp, reply := app.handleRPCWithSurface([]byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`), localMCPSurface())
 	if !reply {
 		t.Fatal("initialize should get a reply")
 	}
@@ -135,14 +135,14 @@ func TestServeMCPStripsBOMAndResponds(t *testing.T) {
 
 func TestMCPNotificationGetsNoReply(t *testing.T) {
 	app := newTestApp(t, &fakeClient{})
-	if _, reply := app.handleRPC([]byte(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)); reply {
+	if _, reply := app.handleRPCWithSurface([]byte(`{"jsonrpc":"2.0","method":"notifications/initialized"}`), localMCPSurface()); reply {
 		t.Error("notifications must not get a reply")
 	}
 }
 
 func TestMCPToolsList(t *testing.T) {
 	app := newTestApp(t, &fakeClient{})
-	resp, _ := app.handleRPC([]byte(`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`))
+	resp, _ := app.handleRPCWithSurface([]byte(`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`), localMCPSurface())
 	result, _ := resp.Result.(map[string]any)
 	tools, _ := result["tools"].([]map[string]any)
 	if len(tools) == 0 {
@@ -199,7 +199,7 @@ func TestMCPToolsCallDryRun(t *testing.T) {
 		"name":      "ticket_create",
 		"arguments": map[string]any{"company": "123", "title": "x", "desc": "what it's about", "dry-run": true},
 	})
-	res, rerr := app.mcpToolsCall(params)
+	res, rerr := app.mcpToolsCallWithSurface(params, localMCPSurface())
 	if rerr != nil {
 		t.Fatalf("rpc error: %v", rerr)
 	}
@@ -226,7 +226,7 @@ func TestMCPToolsCallRejectsBoolStringDryRun(t *testing.T) {
 		"name":      "ticket_create",
 		"arguments": map[string]any{"company": "123", "title": "x", "desc": "what it's about", "dry-run": "true"},
 	})
-	res, rerr := app.mcpToolsCall(params)
+	res, rerr := app.mcpToolsCallWithSurface(params, localMCPSurface())
 	if rerr != nil {
 		t.Fatalf("rpc error: %v", rerr)
 	}
@@ -248,7 +248,7 @@ func TestMCPToolsCallRejectsUnknownArgument(t *testing.T) {
 		"name":      "ticket_search",
 		"arguments": map[string]any{"query": "vpn", "surprise": true},
 	})
-	res, rerr := app.mcpToolsCall(params)
+	res, rerr := app.mcpToolsCallWithSurface(params, localMCPSurface())
 	if rerr != nil {
 		t.Fatalf("rpc error: %v", rerr)
 	}
@@ -262,7 +262,7 @@ func TestMCPToolsCallRejectsUnknownArgument(t *testing.T) {
 }
 
 func TestMCPSchemaEnum(t *testing.T) {
-	for _, tool := range mcpTools() {
+	for _, tool := range mcpToolsFor(localMCPSurface().commands) {
 		if tool["name"] != "report" {
 			continue
 		}
@@ -280,7 +280,7 @@ func TestMCPSchemaEnum(t *testing.T) {
 
 func TestMCPOutputSchema(t *testing.T) {
 	schemas := map[string]map[string]any{}
-	for _, tool := range mcpTools() {
+	for _, tool := range mcpToolsFor(localMCPSurface().commands) {
 		name, _ := tool["name"].(string)
 		schema, _ := tool["outputSchema"].(map[string]any)
 		schemas[name] = schema
@@ -303,14 +303,14 @@ func TestMCPOutputSchema(t *testing.T) {
 func TestMCPResources(t *testing.T) {
 	app := newTestApp(t, &fakeClient{})
 
-	resp, _ := app.handleRPC([]byte(`{"jsonrpc":"2.0","id":1,"method":"resources/list"}`))
+	resp, _ := app.handleRPCWithSurface([]byte(`{"jsonrpc":"2.0","id":1,"method":"resources/list"}`), localMCPSurface())
 	result, _ := resp.Result.(map[string]any)
 	list, _ := result["resources"].([]map[string]any)
 	if len(list) != 2 {
 		t.Fatalf("resources = %d", len(list))
 	}
 
-	resp, _ = app.handleRPC([]byte(`{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"atem://describe"}}`))
+	resp, _ = app.handleRPCWithSurface([]byte(`{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"atem://describe"}}`), localMCPSurface())
 	res2, _ := resp.Result.(map[string]any)
 	contents, _ := res2["contents"].([]map[string]any)
 	if len(contents) != 1 {
@@ -321,12 +321,12 @@ func TestMCPResources(t *testing.T) {
 		t.Error("describe resource missing commands")
 	}
 
-	resp, _ = app.handleRPC([]byte(`{"jsonrpc":"2.0","id":3,"method":"resources/read","params":{"uri":"atem://config"}}`))
+	resp, _ = app.handleRPCWithSurface([]byte(`{"jsonrpc":"2.0","id":3,"method":"resources/read","params":{"uri":"atem://config"}}`), localMCPSurface())
 	if resp.Error != nil {
 		t.Errorf("config resource errored: %v", resp.Error)
 	}
 
-	resp, _ = app.handleRPC([]byte(`{"jsonrpc":"2.0","id":4,"method":"resources/read","params":{"uri":"atem://nope"}}`))
+	resp, _ = app.handleRPCWithSurface([]byte(`{"jsonrpc":"2.0","id":4,"method":"resources/read","params":{"uri":"atem://nope"}}`), localMCPSurface())
 	if resp.Error == nil {
 		t.Error("expected error for unknown resource")
 	}
@@ -475,14 +475,14 @@ func TestEffectiveEntraAudiencesFlagBeatsEnvList(t *testing.T) {
 func TestMCPPrompts(t *testing.T) {
 	app := newTestApp(t, &fakeClient{})
 
-	resp, _ := app.handleRPC([]byte(`{"jsonrpc":"2.0","id":1,"method":"prompts/list"}`))
+	resp, _ := app.handleRPCWithSurface([]byte(`{"jsonrpc":"2.0","id":1,"method":"prompts/list"}`), localMCPSurface())
 	result, _ := resp.Result.(map[string]any)
 	list, _ := result["prompts"].([]map[string]any)
 	if len(list) != 2 {
 		t.Fatalf("prompts = %d", len(list))
 	}
 
-	resp, _ = app.handleRPC([]byte(`{"jsonrpc":"2.0","id":2,"method":"prompts/get","params":{"name":"log_day","arguments":{"date":"2026-06-16","notes":"fixed printer"}}}`))
+	resp, _ = app.handleRPCWithSurface([]byte(`{"jsonrpc":"2.0","id":2,"method":"prompts/get","params":{"name":"log_day","arguments":{"date":"2026-06-16","notes":"fixed printer"}}}`), localMCPSurface())
 	res2, _ := resp.Result.(map[string]any)
 	msgs, _ := res2["messages"].([]map[string]any)
 	if len(msgs) != 1 {
@@ -494,7 +494,7 @@ func TestMCPPrompts(t *testing.T) {
 		t.Errorf("prompt text = %q", text)
 	}
 
-	resp, _ = app.handleRPC([]byte(`{"jsonrpc":"2.0","id":3,"method":"prompts/get","params":{"name":"nope"}}`))
+	resp, _ = app.handleRPCWithSurface([]byte(`{"jsonrpc":"2.0","id":3,"method":"prompts/get","params":{"name":"nope"}}`), localMCPSurface())
 	if resp.Error == nil {
 		t.Error("expected error for unknown prompt")
 	}
@@ -515,7 +515,7 @@ func TestUsageTextGeneratedFromRegistry(t *testing.T) {
 func TestMCPToolsCallUnknown(t *testing.T) {
 	app := newTestApp(t, &fakeClient{})
 	params, _ := json.Marshal(map[string]any{"name": "does_not_exist", "arguments": map[string]any{}})
-	if _, rerr := app.mcpToolsCall(params); rerr == nil {
+	if _, rerr := app.mcpToolsCallWithSurface(params, localMCPSurface()); rerr == nil {
 		t.Error("expected rpc error for unknown tool")
 	}
 }
