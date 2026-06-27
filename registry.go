@@ -18,7 +18,7 @@ type cmdFlag struct {
 	Required   bool     `json:"required,omitempty"`
 	Positional bool     `json:"positional,omitempty"`
 	Default    string   `json:"default,omitempty"`
-	Enum       []string `json:"enum,omitempty"` // allowed values, if constrained
+	Enum       []string `json:"enum,omitempty"`
 	Desc       string   `json:"desc"`
 }
 
@@ -29,7 +29,7 @@ type command struct {
 	Summary     string           `json:"summary"`
 	Flags       []cmdFlag        `json:"flags"`
 	Example     string           `json:"example,omitempty"`
-	ReadOnly    bool             `json:"readOnly,omitempty"`    // no side effects
+	ReadOnly    bool             `json:"readOnly,omitempty"`
 	Destructive bool             `json:"destructive,omitempty"` // writes to Autotask (has --dry-run)
 	Surfaces    []commandSurface `json:"surfaces,omitempty"`
 	// OutputType is a zero value of the result struct, used to generate the MCP

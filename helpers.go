@@ -39,7 +39,6 @@ func cmdContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), requestTimeout)
 }
 
-// defOr returns v unless it is zero, in which case it returns fallback.
 func defOr(v, fallback int) int {
 	if v != 0 {
 		return v
@@ -47,7 +46,6 @@ func defOr(v, fallback int) int {
 	return fallback
 }
 
-// firstArg returns the first element of args, or "".
 func firstArg(args []string) string {
 	if len(args) == 0 {
 		return ""
@@ -135,12 +133,10 @@ func parseSearch(args []string) (searchArgs, error) {
 	return out, nil
 }
 
-// round2 rounds to two decimal places.
 func round2(f float64) float64 {
 	return math.Round(f*100) / 100
 }
 
-// setInt parses val into dst, returning a hinted error on failure.
 func setInt(dst *int, val string) error {
 	n, err := strconv.Atoi(strings.TrimSpace(val))
 	if err != nil {
@@ -150,7 +146,6 @@ func setInt(dst *int, val string) error {
 	return nil
 }
 
-// redact masks a secret for display.
 func redact(s string) string {
 	if strings.TrimSpace(s) == "" {
 		return ""
@@ -158,7 +153,6 @@ func redact(s string) string {
 	return "***set***"
 }
 
-// asString coerces a decoded JSON value to a string.
 func asString(v any) string {
 	if v == nil {
 		return ""
@@ -169,7 +163,6 @@ func asString(v any) string {
 	return fmt.Sprintf("%v", v)
 }
 
-// asInt64 coerces a decoded JSON value to int64.
 func asInt64(v any) int64 {
 	switch n := v.(type) {
 	case float64:
@@ -186,7 +179,6 @@ func asInt64(v any) int64 {
 	}
 }
 
-// asFloat coerces a decoded JSON value to float64.
 func asFloat(v any) float64 {
 	switch n := v.(type) {
 	case float64:
