@@ -1,0 +1,146 @@
+name: Deploy Azure Container App
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GOLANGCI_VERSION: v2.12.2
+  IMAGE_NAME: atem-mcp
+
+jobs:
+  check:
+    name: build / lint / test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          check-latest: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ env.GOLANGCI_VERSION }}
+
+      - name: Lint + formatting
+        run: golangci-lint run
+
+      - name: Test (race + coverage)
+        run: go test ./... -race -count=1 -covermode=atomic -coverprofile=coverage.out
+
+      - name: Coverage summary
+        run: go tool cover -func=coverage.out | tail -n 1
+
+  deploy:
+    name: build image / deploy
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve Azure targets
+        id: azure
+        shell: bash
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_ACR_NAME: ${{ vars.AZURE_ACR_NAME }}
+          AZURE_CONTAINER_APP_NAME: ${{ vars.AZURE_CONTAINER_APP_NAME }}
+          AZURE_CONTAINER_APP_ENVIRONMENT: ${{ vars.AZURE_CONTAINER_APP_ENVIRONMENT }}
+        run: |
+          set -euo pipefail
+          : "${AZURE_RESOURCE_GROUP:?Set AZURE_RESOURCE_GROUP repository variable}"
+          : "${AZURE_ACR_NAME:?Set AZURE_ACR_NAME repository variable}"
+          : "${AZURE_CONTAINER_APP_NAME:?Set AZURE_CONTAINER_APP_NAME repository variable}"
+          : "${AZURE_CONTAINER_APP_ENVIRONMENT:?Set AZURE_CONTAINER_APP_ENVIRONMENT repository variable}"
+
+          acr_login_server="$(az acr show \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_ACR_NAME" \
+            --query loginServer \
+            --output tsv)"
+
+          echo "resource_group=$AZURE_RESOURCE_GROUP" >> "$GITHUB_OUTPUT"
+          echo "container_app=$AZURE_CONTAINER_APP_NAME" >> "$GITHUB_OUTPUT"
+          echo "container_app_environment=$AZURE_CONTAINER_APP_ENVIRONMENT" >> "$GITHUB_OUTPUT"
+          echo "acr_name=$AZURE_ACR_NAME" >> "$GITHUB_OUTPUT"
+          echo "acr_login_server=$acr_login_server" >> "$GITHUB_OUTPUT"
+          echo "image_sha=$acr_login_server/${IMAGE_NAME}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "image_latest=$acr_login_server/${IMAGE_NAME}:latest" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          az acr login --name "${{ steps.azure.outputs.acr_name }}"
+          docker build \
+            --build-arg ATEM_COMMIT="${GITHUB_SHA}" \
+            --build-arg ATEM_BUILD_TIME="${build_time}" \
+            --tag "${{ steps.azure.outputs.image_sha }}" \
+            --tag "${{ steps.azure.outputs.image_latest }}" \
+            .
+          docker push "${{ steps.azure.outputs.image_sha }}"
+          docker push "${{ steps.azure.outputs.image_latest }}"
+
+      - name: Deploy Container App revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          rg="${{ steps.azure.outputs.resource_group }}"
+          app="${{ steps.azure.outputs.container_app }}"
+          env_name="${{ steps.azure.outputs.container_app_environment }}"
+          image="${{ steps.azure.outputs.image_sha }}"
+          acr_server="${{ steps.azure.outputs.acr_login_server }}"
+
+          if az containerapp show --resource-group "$rg" --name "$app" >/dev/null 2>&1; then
+            az containerapp update \
+              --resource-group "$rg" \
+              --name "$app" \
+              --image "$image" \
+              --set-env-vars ATEM_AUTH_MODE=entra ATEM_TIMEZONE=Europe/Stockholm
+          else
+            az containerapp create \
+              --resource-group "$rg" \
+              --name "$app" \
+              --environment "$env_name" \
+              --image "$image" \
+              --ingress external \
+              --target-port 8080 \
+              --transport http \
+              --registry-server "$acr_server" \
+              --registry-identity system \
+              --system-assigned \
+              --min-replicas 1 \
+              --max-replicas 3 \
+              --cpu 0.25 \
+              --memory 0.5Gi \
+              --env-vars ATEM_HTTP_ADDR=:8080 ATEM_MCP_TOOLSET=m365 ATEM_AUTH_MODE=entra ATEM_TIMEZONE=Europe/Stockholm
+          fi
+
+      - name: Show endpoint
+        shell: bash
+        run: |
+          az containerapp show \
+            --resource-group "${{ steps.azure.outputs.resource_group }}" \
+            --name "${{ steps.azure.outputs.container_app }}" \
+            --query "properties.configuration.ingress.fqdn" \
+            --output tsv
