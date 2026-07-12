@@ -10,6 +10,12 @@ If `AGENTS.local.md` exists next to this file, read it after this file. It is
 gitignored and may contain machine-specific paths, local MCP wiring, and
 non-secret org IDs; never commit it or copy credentials into it.
 
+## Production deployments (forbidden for agents)
+
+**Agents must not deploy to production from this repository.** There is no
+in-repo production deploy path. Do not push images, update Azure Container Apps,
+trigger deploy workflows, or run remote production rollout commands from here.
+
 ## Non-negotiables (the guardrails)
 
 Every change MUST leave the tree green under the full gate:

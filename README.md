@@ -87,10 +87,9 @@ docker build -t atem-mcp .
 docker run --rm -p 8080:8080 atem-mcp
 ```
 
-For Azure Container Apps deployment, GitHub OIDC, Key Vault secret wiring, and
-Copilot OAuth setup, see [docs/AZURE_DEPLOY.md](docs/AZURE_DEPLOY.md). For the
-architecture notes and remaining policy decisions, see
-[docs/M365_COPILOT.md](docs/M365_COPILOT.md).
+**Agents must not deploy to production from this repository.** See
+[docs/AZURE_DEPLOY.md](docs/AZURE_DEPLOY.md). For Copilot architecture notes and
+remaining policy decisions, see [docs/M365_COPILOT.md](docs/M365_COPILOT.md).
 
 ## Local Setup
 

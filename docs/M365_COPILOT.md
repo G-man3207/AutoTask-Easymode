@@ -36,7 +36,7 @@ between today's local CLI/MCP server and a tenant-deployable Copilot plugin.
 - Copilot Studio MCP connections can become stale when the Entra access token
   expires. Request `offline_access` in the OAuth scopes and, if Copilot still
   does not refresh silently, assign an app-scoped Entra access-token lifetime
-  policy to the MCP API app as documented in `docs/AZURE_DEPLOY.md`.
+  policy to the MCP API app (see `scripts/azure/set-token-lifetime.ps1`).
 - The local stdio MCP surface is intentionally broader than the hosted M365
   surface. Local/admin tools such as `config set`, `company alias`, local timer
   state commands, and `config doctor` remain available locally but are hidden
